@@ -1,0 +1,6 @@
+csi-driver-athenz {{ .Chart.AppVersion }} has been deployed successfully!
+
+For usage instructions and a guide to getting started, check out the csi-driver-athenz
+page on the athenz website:
+
+https://athenz.io/projects.html#csi-driver-athenz

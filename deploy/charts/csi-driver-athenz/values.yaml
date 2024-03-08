@@ -1,0 +1,216 @@
+image:
+    # Target image registry. This value is prepended to the target image repository, if set.
+    # For example:
+    #   registry: docker.io
+    #   repository:
+    #     driver: athenz/cert-manager-csi-driver-athenz
+    #     approver: athenz/cert-manager-csi-driver-athenz-approver
+    # +docs:property
+    # registry: docker.io
+  repository:
+    # Target image repository for the csi-driver driver DaemonSet.
+    driver: docker.io/athenz/cert-manager-csi-driver-athenz
+    # Target image repository for the csi-driver approver Deployment.
+    approver: docker.io/athenz/cert-manager-csi-driver-athenz-approver
+
+  # Override the image tag to deploy by setting this variable.
+  # If no value is set, the chart's appVersion is used.
+  # +docs:property
+  # tag: vX.Y.Z
+
+  digest: {}
+    # Target csi-driver driver digest. Override any tag, if set.
+    # For example:
+    #   driver: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20
+    # +docs:property=image.digest.driver
+    # driver: sha256:...
+    
+    # Target csi-driver approver digest. Override any tag, if set.
+    # For example:
+    #   approver: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20
+    # +docs:property=image.digest.approver
+    # approver: sha256:...
+
+  # -- Kubernetes imagePullPolicy on DaemonSet.
+  pullPolicy: IfNotPresent
+
+# -- Optional secrets used for pulling the csi-driver-athenz and csi-driver-athenz-approver container images
+imagePullSecrets: []
+#- name: Secret with Registry credentials
+
+app:
+  # -- Verbosity of cert-manager-csi-driver logging.
+  logLevel: 1 # 1-5
+  # -- Duration requested for requested certificates.
+  certificateRequestDuration: 1h
+  # List of annotations to add to certificate requests
+  #
+  # For example:
+  #  extraCertificateRequestAnnotations: app=csi-driver-athenz,foo=bar
+  extraCertificateRequestAnnotations:
+  # -- The Trust Domain for this driver.
+  trustDomain: cluster.local
+  # -- The name for the CSI driver installation.
+  name: csi.cert-manager.athenz.io
+  issuer:
+    # -- Issuer name which is used to serve this Trust Domain.
+    name: athenz-ca
+    # -- Issuer kind which is used to serve this Trust Domain.
+    kind: ClusterIssuer
+    # -- Issuer group which is used to serve this Trust Domain.
+    group: cert-manager.io
+
+  # -- Options for CSI driver
+  driver:
+    # -- Optional file containing a CA bundle that will be propagated to
+    # managed volumes.
+    sourceCABundle: # /var/run/secrets/athenz.io/ca.pem
+    volumeFileName:
+      # -- File name which signed certificates are written to in volumes.
+      cert: tls.crt
+      # -- File name which private keys are written to in volumes.
+      key: tls.key
+      # -- File name where the CA bundles are written to, if enabled.
+      ca: ca.crt
+    # -- Optional extra volumes. Useful for mounting root CAs
+    volumes: []
+    #- name: root-cas
+    #  secret:
+    #    secretName: root-ca-bundle
+    # -- Optional extra volume mounts. Useful for mounting root CAs
+    volumeMounts: []
+    #- name: root-cas
+    #  mountPath: /var/run/secrets/cert-manager-csi-driver-athenz
+
+    # -- Configures the hostPath directory that the driver will write and mount volumes from.
+    csiDataDir: /tmp/cert-manager-csi-driver-athenz
+  
+    resources: {}
+    # -- Kubernetes pod resource limits for cert-manager-csi-driver-athenz
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # -- Kubernetes pod memory resource requests for cert-manager-csi-driver-athenz
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+    nodeDriverRegistrarImage:
+      # Target image registry. This value is prepended to the target image repository, if set.
+      # For example:
+      #   registry: registry.k8s.io
+      #   repository: sig-storage/csi-node-driver-registrar
+      # +docs:property
+      # registry: registry.k8s.io
+
+      # -- Target image repository.
+      repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+
+      # Override the image tag to deploy by setting this variable.
+      # If no value is set, the chart's appVersion is used.
+      # +docs:property
+      tag: v2.10.0
+
+      # Target image digest. Override any tag, if set.
+      # For example:
+      #   digest: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20
+      # +docs:property
+      # digest: sha256:...
+      
+      # Kubernetes imagePullPolicy on node-driver.
+      pullPolicy: IfNotPresent
+
+    livenessProbeImage:
+      # Target image registry. This value is prepended to the target image repository, if set.
+      # For example:
+      #   registry: registry.k8s.io
+      #   repository: sig-storage/livenessprobe
+      # +docs:property
+      # registry: registry.k8s.io
+
+      # -- Target image repository.
+      repository: registry.k8s.io/sig-storage/livenessprobe
+
+      # Override the image tag to deploy by setting this variable.
+      # If no value is set, the chart's appVersion is used.
+      # +docs:property
+      tag: v2.12.0
+
+      # -- Kubernetes imagePullPolicy on liveness probe.
+      pullPolicy: IfNotPresent
+
+    livenessProbe:
+      # -- The port that will expose the liveness of the csi-driver
+      port: 9809
+  
+    # -- Options for CSI driver Athenz configuration
+  athenz:
+    # -- Athenz ZTS endpoint
+    zts: 
+    # -- Provider prefix for the backend provider in ZTS which is responsible for verifying and issuing the identity.
+    providerPrefix: 
+    # -- Optional ZTS CA bundle
+    caCertFile: 
+    # -- dns domains used to construct the Athenz service FQDN. Multiple domains can be specified separated by comma
+    dnsDomains: 
+    # -- Country name in the certificate
+    certCountryName: 
+    # -- Organization name in the certificate
+    certOrgName: 
+    # -- Cloud provider name where the driver is running
+    cloudProvider: 
+    # -- Cloud region where the driver is running
+    cloudRegion: 
+
+  # -- Options for approver controller
+  approver:
+    # -- Number of replicas of the approver to run.
+    replicaCount: 1
+    # -- The signer name that csi-driver-athenz approver will be given
+    # permission to approve and deny. CertificateRequests referencing this
+    # signer name can be processed by the Athenz approver. See:
+    # https://cert-manager.io/docs/concepts/certificaterequest/#approval
+    signerName: "clusterissuers.cert-manager.io/*"
+    readinessProbe:
+      # -- Container port to expose csi-driver-athenz-approver HTTP readiness
+      # probe on default network interface.
+      port: 6060
+
+    metrics:
+      # -- Port for exposing Prometheus metrics on 0.0.0.0 on path '/metrics'.
+      port: 9402
+      # -- Service to expose metrics endpoint.
+      service:
+        # -- Create a Service resource to expose metrics endpoint.
+        enabled: true
+        # -- Service type to expose metrics.
+        type: ClusterIP
+        # -- ServiceMonitor resource for this Service.
+        servicemonitor:
+          # Create Prometheus ServiceMonitor resource for cert-manager-csi-driver-athenz approver.
+          enabled: false
+          # The value for the "prometheus" label on the ServiceMonitor. This allows
+          # for multiple Prometheus instances selecting difference ServiceMonitors 
+          # using label selectors.
+          prometheusInstance: default
+          # The interval that the Prometheus will scrape for metrics.
+          interval: 10s
+          # The timeout on each metric probe request.
+          scrapeTimeout: 5s
+          # Additional labels to give the ServiceMonitor resource.
+          labels: {}
+    resources: {}
+    # -- Kubernetes pod resource limits for cert-manager-csi-driver-athenz approver
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # -- Kubernetes pod memory resource requests for cert-manager-csi-driver-athenz approver
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+# -- Optional priority class to be used for the csi-driver pods.
+priorityClassName: ""
+
+# Labels to apply to all resources
+commonLabels: {}

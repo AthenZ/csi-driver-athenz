@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "cert-manager-csi-driver-athenz.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "cert-manager-csi-driver-athenz.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "cert-manager-csi-driver-athenz.name" . }}
+        {{- include "cert-manager-csi-driver-athenz.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "cert-manager-csi-driver-athenz.name" . }}
+      containers:
+
+        - name: node-driver-registrar
+          image: "{{ template "image" (tuple .Values.app.driver.nodeDriverRegistrarImage $.Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.app.driver.nodeDriverRegistrarImage.pullPolicy }}
+          args:
+            - -v={{ .Values.app.logLevel }}
+            - --csi-address=/plugin/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/cert-manager-csi-driver-athenz/csi.sock
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: registration-dir
+              mountPath: /registration
+
+        - name: liveness-probe
+          image: "{{ template "image" (tuple .Values.app.driver.livenessProbeImage $.Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.app.driver.livenessProbeImage.pullPolicy }}
+          args:
+            - --csi-address=/plugin/csi.sock
+            - --probe-timeout=3s
+            - --health-port={{.Values.app.driver.livenessProbe.port}}
+            - -v={{ .Values.app.logLevel }}
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+
+        - name: cert-manager-csi-driver-athenz
+          securityContext:
+            readOnlyRootFilesystem: true
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+            runAsUser: 0
+          image: "{{ template "image-driver" (tuple .Values.image $.Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args :
+            - --log-level={{ .Values.app.logLevel }}
+
+            - --csi-driver-name={{ .Values.app.name }}
+
+            - --certificate-request-duration={{ .Values.app.certificateRequestDuration }}
+            - --issuer-name={{ .Values.app.issuer.name }}
+            - --issuer-kind={{ .Values.app.issuer.kind }}
+            - --issuer-group={{ .Values.app.issuer.group }}
+            - --trust-domain={{ .Values.app.trustDomain }}
+
+            - --file-name-certificate={{ .Values.app.driver.volumeFileName.cert }}
+            - --file-name-key={{ .Values.app.driver.volumeFileName.key }}
+            - --file-name-ca={{ .Values.app.driver.volumeFileName.ca }}
+            - --source-ca-bundle={{ .Values.app.driver.sourceCABundle }}
+
+            - --node-id=$(NODE_ID)
+            - --endpoint=$(CSI_ENDPOINT)
+            - --data-root=csi-data-dir
+
+          {{- if .Values.app.extraCertificateRequestAnnotations }}
+            - --extra-certificate-request-annotations={{ .Values.app.extraCertificateRequestAnnotations }}
+          {{- end }}
+
+            - --zts={{ .Values.app.athenz.zts }}
+            - --provider-prefix={{ .Values.app.athenz.providerPrefix }}
+            - --ca-cert-file={{ .Values.app.athenz.caCertFile }}
+            - --dns-domains={{ .Values.app.athenz.dnsDomains }}
+            - --cert-country-name={{ .Values.app.athenz.certCountryName }}
+            - --cert-org-name={{ .Values.app.athenz.certOrgName }}
+            - --cloud-provider={{ .Values.app.athenz.cloudProvider }}
+            - --cloud-region={{ .Values.app.athenz.cloudRegion }}
+
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+          volumeMounts:
+          - name: plugin-dir
+            mountPath: /plugin
+          - name: pods-mount-dir
+            mountPath: /var/lib/kubelet/pods
+            mountPropagation: "Bidirectional"
+          - name: csi-data-dir
+            mountPath: /csi-data-dir
+        {{- if .Values.app.driver.volumeMounts }}
+{{ toYaml .Values.app.driver.volumeMounts | indent 10 }}
+        {{- end }}
+          ports:
+            - containerPort: {{.Values.app.driver.livenessProbe.port}}
+              name: healthz
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.app.driver.resources | nindent 12 }}
+
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+
+      volumes:
+      # This volume is where the socket for kubelet->driver communication lives
+      - name: plugin-dir
+        hostPath:
+          path: /var/lib/kubelet/plugins/cert-manager-csi-driver-athenz
+          type: DirectoryOrCreate
+      # This volume is where the CSI driver mounts volumes
+      - name: pods-mount-dir
+        hostPath:
+          path: /var/lib/kubelet/pods
+          type: Directory
+      # This volume is where the node-driver-registrar registers the plugin with kubelet
+      - name: registration-dir
+        hostPath:
+          path: /var/lib/kubelet/plugins_registry
+          type: Directory
+      # This volume is where the CSI driver stores its data
+      - name: csi-data-dir
+        hostPath:
+          path: {{ .Values.app.driver.csiDataDir }}
+          type: DirectoryOrCreate
+      {{- if .Values.app.driver.volumes }}
+{{ toYaml .Values.app.driver.volumes | indent 6 }}
+      {{- end }}
