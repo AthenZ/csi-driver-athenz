@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sandbox
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: athenz.example
+  namespace: sandbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-app
+  namespace: sandbox
+rules:
+- apiGroups: ["cert-manager.io"]
+  resources: ["certificaterequests"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: example-app
+  namespace: sandbox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: example-app
+subjects:
+- kind: ServiceAccount
+  name: athenz.example
+  namespace: sandbox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-csi-app
+  namespace: sandbox
+  labels:
+    app: my-csi-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-csi-app
+  template:
+    metadata:
+      labels:
+        app: my-csi-app
+    spec:
+      serviceAccountName: athenz.example
+      containers:
+        - name: my-frontend
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command: [ "sleep", "1000000" ]
+          volumeMounts:
+          - mountPath: "/var/run/secrets/athenz.io"
+            name: athenz
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "100m"
+            limits:
+              memory: "64Mi"
+              cpu: "250m"
+      volumes:
+        - name: athenz
+          csi:
+            driver: csi.cert-manager.athenz.io
+            readOnly: true
+            volumeAttributes:
+              csi.cert-manager.athenz.io/pod-subdomain: "my-subdomain"
+              csi.cert-manager.athenz.io/pod-hostname: "my-hostname"

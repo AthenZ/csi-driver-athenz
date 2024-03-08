@@ -1,0 +1,12 @@
+bin/
+target/
+_bin/
+_certs/
+_artifacts/
+.vscode
+testbin/*
+
+# direnv files
+.envrc
+
+example-app-*.yaml

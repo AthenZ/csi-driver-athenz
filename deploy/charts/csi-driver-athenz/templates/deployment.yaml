@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.app.approver.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+  template:
+    metadata:
+      labels:
+        app: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+        {{- include "cert-manager-csi-driver-athenz.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+      containers:
+      - name: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+        image: "{{ template "image-approver" (tuple .Values.image $.Chart.AppVersion) }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.app.approver.metrics.port }}
+        readinessProbe:
+          httpGet:
+            port: {{ .Values.app.approver.readinessProbe.port }}
+            path: "/readyz"
+          initialDelaySeconds: 3
+          periodSeconds: 7
+        args:
+          - --log-level={{ .Values.app.logLevel }}
+          - --csi-driver-name={{ .Values.app.name }}
+
+          - --certificate-request-duration={{ .Values.app.certificateRequestDuration }}
+          - --issuer-name={{ .Values.app.issuer.name }}
+          - --issuer-kind={{ .Values.app.issuer.kind }}
+          - --issuer-group={{ .Values.app.issuer.group }}
+          - --trust-domain={{ .Values.app.trustDomain }}
+
+          - --leader-election-namespace=$(POD_NAMESPACE)
+          - "--metrics-bind-address=:{{.Values.app.approver.metrics.port}}"
+          - "--readiness-probe-bind-address=:{{.Values.app.approver.readinessProbe.port}}"
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+{{- toYaml .Values.app.approver.resources | nindent 12 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
