@@ -60,6 +60,17 @@ jobs:
       pull-requests: write # needed for creating a PR
 
     steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "athenz-bot"
+          git config user.email "athenz-bot@users.noreply.github.com"
+
       - run: |
           touch .notes-file
           echo "OCI_MANAGER_IMAGE: ${{ needs.build_images.outputs.RELEASE_OCI_MANAGER_IMAGE }}" >> .notes-file
@@ -84,3 +95,12 @@ jobs:
           gh release upload "$VERSION" \
             --repo="$GITHUB_REPOSITORY" \
             "${{ steps.chart_download.outputs.download-path }}/${{ needs.build_images.outputs.RELEASE_HELM_CHART_NAME }}-${{ needs.build_images.outputs.RELEASE_HELM_CHART_VERSION }}.tgz"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.5.0
+        with:
+          skip_packaging: true
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_PACKAGE_PATH: ${{ steps.chart_download.outputs.download-path }}
+          CR_SKIP_EXISTING: true
