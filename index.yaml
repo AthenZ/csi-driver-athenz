@@ -35,4 +35,39 @@ entries:
     urls:
     - https://github.com/AthenZ/csi-driver-athenz/releases/download/cert-manager-csi-driver-athenz-v0.0.2/cert-manager-csi-driver-athenz-v0.0.2.tgz
     version: v0.0.2
-generated: "2024-03-13T16:30:12.018850207Z"
+  csi-driver-athenz:
+  - annotations:
+      artifacthub.io/alternativeName: csi-driver-athenz
+      artifacthub.io/category: security
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/prerelease: "false"
+      artifacthub.io/recommendations: |
+        - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager-csi-driver
+        - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager
+        - url: https://artifacthub.io/packages/helm/cert-manager/trust-manager
+    apiVersion: v2
+    appVersion: v0.0.1
+    created: "2024-03-13T17:08:46.303772581Z"
+    description: cert-manager csi-driver-athenz is a CSI plugin for Kubernetes which
+      transparently delivers Athenz X.509 certificate to pods via cert-manager
+    digest: e0c293170752fb74b73f46d2d945382f45623ff16631a3d99c9d46c3b11c6631
+    home: https://www.athenz.io/projects.html#csi-driver-athenz
+    icon: https://raw.githubusercontent.com/AthenZ/website/f3e94b8a8ecd2ff0b7948a891e73811dddfde453/favicon.ico
+    keywords:
+    - athenz
+    - cert-manager
+    - csi
+    - spiffe
+    - tls
+    maintainers:
+    - email: athenz-team@googlegroups.com
+      name: athenz-team
+      url: https://athenz.io
+    name: csi-driver-athenz
+    sources:
+    - https://github.com/AthenZ/csi-driver-athenz
+    type: application
+    urls:
+    - https://github.com/AthenZ/csi-driver-athenz/releases/download/csi-driver-athenz-v0.0.1/csi-driver-athenz-v0.0.1.tgz
+    version: v0.0.1
+generated: "2024-03-13T17:08:46.303785586Z"
