@@ -2,8 +2,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   labels:
-{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
-  name: {{ include "cert-manager-csi-driver-athenz.name" . }}
+{{ include "csi-driver-athenz.labels" . | indent 4 }}
+  name: {{ include "csi-driver-athenz.name" . }}
 rules:
 - apiGroups: ["cert-manager.io"]
   resources: ["certificaterequests"]
@@ -13,8 +13,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   labels:
-{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
-  name: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+{{ include "csi-driver-athenz.labels" . | indent 4 }}
+  name: {{ include "csi-driver-athenz.name" . }}-approver
 rules:
 - apiGroups: ["cert-manager.io"]
   resources: ["certificaterequests"]

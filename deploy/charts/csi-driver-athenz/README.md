@@ -1,12 +1,12 @@
-# cert-manager-csi-driver-athenz
+# csi-driver-athenz
 
 <!-- AUTO-GENERATED -->
 
 #### **image.repository** ~ `object`
 > Default value:
 > ```yaml
-> approver: docker.io/athenz/cert-manager-csi-driver-athenz-approver
-> driver: docker.io/athenz/cert-manager-csi-driver-athenz
+> approver: docker.io/athenz/csi-driver-athenz-approver
+> driver: docker.io/athenz/csi-driver-athenz
 > ```
 
 Target image registry. This value is prepended to the target image repository, if set.  
@@ -15,8 +15,8 @@ For example:
 ```yaml
 registry: docker.io
 repository:
-  driver: athenz/cert-manager-csi-driver-athenz
-  approver: athenz/cert-manager-csi-driver-athenz-approver
+  driver: athenz/csi-driver-athenz
+  approver: athenz/csi-driver-athenz-approver
 ```
 
 
@@ -179,7 +179,7 @@ secret:
 #### **app.driver.csiDataDir** ~ `string`
 > Default value:
 > ```yaml
-> /var/run/cert-manager-csi-driver-athenz
+> /var/run/csi-driver-athenz
 > ```
 
 -- Configures the hostPath directory that the driver will write and mount volumes from.
@@ -374,7 +374,7 @@ probe on default network interface.
 > false
 > ```
 
-Create Prometheus ServiceMonitor resource for cert-manager-csi-driver-athenz approver.
+Create Prometheus ServiceMonitor resource for csi-driver-athenz approver.
 #### **app.approver.metrics.service.servicemonitor.prometheusInstance** ~ `string`
 > Default value:
 > ```yaml

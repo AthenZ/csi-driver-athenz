@@ -79,7 +79,7 @@ var _ = Context("Approval", func() {
 				BindAddress: "0",
 			},
 			LeaderElectionNamespace:       namespace.Name,
-			LeaderElectionID:              "cert-manager-csi-driver-athenz-approver",
+			LeaderElectionID:              "csi-driver-athenz-approver",
 			LeaderElectionReleaseOnCancel: true,
 			Logger:                        log,
 		})
@@ -109,7 +109,7 @@ var _ = Context("Approval", func() {
 	It("should ignore CertificateRequest that have the wrong IssuerRef", func() {
 		cr := cmapi.CertificateRequest{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "cert-manager-csi-driver-athenz-",
+				GenerateName: "csi-driver-athenz-",
 				Namespace:    namespace.Name,
 			},
 			Spec: cmapi.CertificateRequestSpec{
@@ -138,7 +138,7 @@ var _ = Context("Approval", func() {
 
 		cr := cmapi.CertificateRequest{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "cert-manager-csi-driver-athenz-",
+				GenerateName: "csi-driver-athenz-",
 				Namespace:    namespace.Name,
 			},
 			Spec: cmapi.CertificateRequestSpec{
@@ -163,7 +163,7 @@ var _ = Context("Approval", func() {
 
 		cr := cmapi.CertificateRequest{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "cert-manager-csi-driver-athenz-",
+				GenerateName: "csi-driver-athenz-",
 				Namespace:    namespace.Name,
 			},
 			Spec: cmapi.CertificateRequestSpec{

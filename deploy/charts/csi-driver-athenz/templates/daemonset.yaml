@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "cert-manager-csi-driver-athenz.name" . }}
+  name: {{ include "csi-driver-athenz.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
+{{ include "csi-driver-athenz.labels" . | indent 4 }}
 spec:
   selector:
     matchLabels:
-      app: {{ include "cert-manager-csi-driver-athenz.name" . }}
+      app: {{ include "csi-driver-athenz.name" . }}
   template:
     metadata:
       labels:
-        app: {{ include "cert-manager-csi-driver-athenz.name" . }}
-        {{- include "cert-manager-csi-driver-athenz.labels" . | nindent 8 }}
+        app: {{ include "csi-driver-athenz.name" . }}
+        {{- include "csi-driver-athenz.labels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "cert-manager-csi-driver-athenz.name" . }}
+      serviceAccountName: {{ include "csi-driver-athenz.name" . }}
       containers:
 
         - name: node-driver-registrar
@@ -28,7 +28,7 @@ spec:
           args:
             - -v={{ .Values.app.logLevel }}
             - --csi-address=/plugin/csi.sock
-            - --kubelet-registration-path=/var/lib/kubelet/plugins/cert-manager-csi-driver-athenz/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/csi-driver-athenz/csi.sock
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -52,7 +52,7 @@ spec:
             - name: plugin-dir
               mountPath: /plugin
 
-        - name: cert-manager-csi-driver-athenz
+        - name: csi-driver-athenz
           securityContext:
             readOnlyRootFilesystem: true
             privileged: true
@@ -133,7 +133,7 @@ spec:
       # This volume is where the socket for kubelet->driver communication lives
       - name: plugin-dir
         hostPath:
-          path: /var/lib/kubelet/plugins/cert-manager-csi-driver-athenz
+          path: /var/lib/kubelet/plugins/csi-driver-athenz
           type: DirectoryOrCreate
       # This volume is where the CSI driver mounts volumes
       - name: pods-mount-dir
