@@ -1,6 +1,6 @@
 apiVersion: v2
 
-name: cert-manager-csi-driver-athenz
+name: csi-driver-athenz
 type: application
 description: cert-manager csi-driver-athenz is a CSI plugin for Kubernetes which transparently delivers Athenz X.509 certificate to pods via cert-manager
 

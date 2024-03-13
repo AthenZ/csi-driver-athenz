@@ -3,15 +3,15 @@ image:
     # For example:
     #   registry: docker.io
     #   repository:
-    #     driver: athenz/cert-manager-csi-driver-athenz
-    #     approver: athenz/cert-manager-csi-driver-athenz-approver
+    #     driver: athenz/csi-driver-athenz
+    #     approver: athenz/csi-driver-athenz-approver
     # +docs:property
     # registry: docker.io
   repository:
     # Target image repository for the csi-driver driver DaemonSet.
-    driver: docker.io/athenz/cert-manager-csi-driver-athenz
+    driver: docker.io/athenz/csi-driver-athenz
     # Target image repository for the csi-driver approver Deployment.
-    approver: docker.io/athenz/cert-manager-csi-driver-athenz-approver
+    approver: docker.io/athenz/csi-driver-athenz-approver
 
   # Override the image tag to deploy by setting this variable.
   # If no value is set, the chart's appVersion is used.
@@ -80,17 +80,17 @@ app:
     # -- Optional extra volume mounts. Useful for mounting root CAs
     volumeMounts: []
     #- name: root-cas
-    #  mountPath: /var/run/secrets/cert-manager-csi-driver-athenz
+    #  mountPath: /var/run/secrets/csi-driver-athenz
 
     # -- Configures the hostPath directory that the driver will write and mount volumes from.
-    csiDataDir: /tmp/cert-manager-csi-driver-athenz
+    csiDataDir: /tmp/csi-driver-athenz
   
     resources: {}
-    # -- Kubernetes pod resource limits for cert-manager-csi-driver-athenz
+    # -- Kubernetes pod resource limits for csi-driver-athenz
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
-    # -- Kubernetes pod memory resource requests for cert-manager-csi-driver-athenz
+    # -- Kubernetes pod memory resource requests for csi-driver-athenz
     # requests:
     #   cpu: 100m
     #   memory: 128Mi
@@ -187,7 +187,7 @@ app:
         type: ClusterIP
         # -- ServiceMonitor resource for this Service.
         servicemonitor:
-          # Create Prometheus ServiceMonitor resource for cert-manager-csi-driver-athenz approver.
+          # Create Prometheus ServiceMonitor resource for csi-driver-athenz approver.
           enabled: false
           # The value for the "prometheus" label on the ServiceMonitor. This allows
           # for multiple Prometheus instances selecting difference ServiceMonitors 
@@ -200,11 +200,11 @@ app:
           # Additional labels to give the ServiceMonitor resource.
           labels: {}
     resources: {}
-    # -- Kubernetes pod resource limits for cert-manager-csi-driver-athenz approver
+    # -- Kubernetes pod resource limits for csi-driver-athenz approver
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
-    # -- Kubernetes pod memory resource requests for cert-manager-csi-driver-athenz approver
+    # -- Kubernetes pod memory resource requests for csi-driver-athenz approver
     # requests:
     #   cpu: 100m
     #   memory: 128Mi

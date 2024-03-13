@@ -53,5 +53,5 @@ func Test_e2e(t *testing.T) {
 	// Randomize specs as well as suites
 	suiteConfig.RandomizeAllSpecs = true
 
-	ginkgo.RunSpecs(t, "cert-manager-csi-driver-athenz e2e suite", suiteConfig, reporterConfig)
+	ginkgo.RunSpecs(t, "csi-driver-athenz e2e suite", suiteConfig, reporterConfig)
 }

@@ -2,19 +2,19 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+  name: {{ include "csi-driver-athenz.name" . }}-approver
   labels:
-    app: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
-{{ include "cert-manager-csi-driver-athenz.labels" . | indent 4 }}
+    app: {{ include "csi-driver-athenz.name" . }}-approver
+{{ include "csi-driver-athenz.labels" . | indent 4 }}
     prometheus: {{ .Values.app.approver.metrics.service.servicemonitor.prometheusInstance }}
 {{- if .Values.app.approver.metrics.service.servicemonitor.labels }}
 {{ toYaml .Values.app.approver.metrics.service.servicemonitor.labels | indent 4}}
 {{- end }}
 spec:
-  jobLabel: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+  jobLabel: {{ include "csi-driver-athenz.name" . }}-approver
   selector:
     matchLabels:
-      app: {{ include "cert-manager-csi-driver-athenz.name" . }}-approver
+      app: {{ include "csi-driver-athenz.name" . }}-approver
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}

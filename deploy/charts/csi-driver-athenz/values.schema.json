@@ -135,7 +135,7 @@
     },
     "helm-values.app.approver.metrics.service.servicemonitor.enabled": {
       "default": false,
-      "description": "Create Prometheus ServiceMonitor resource for cert-manager-csi-driver-athenz approver.",
+      "description": "Create Prometheus ServiceMonitor resource for csi-driver-athenz approver.",
       "type": "boolean"
     },
     "helm-values.app.approver.metrics.service.servicemonitor.interval": {
@@ -284,7 +284,7 @@
       "type": "object"
     },
     "helm-values.app.driver.csiDataDir": {
-      "default": "/var/run/cert-manager-csi-driver-athenz",
+      "default": "/var/run/csi-driver-athenz",
       "description": "-- Configures the hostPath directory that the driver will write and mount volumes from.",
       "type": "string"
     },
@@ -531,10 +531,10 @@
     },
     "helm-values.image.repository": {
       "default": {
-        "approver": "docker.io/athenz/cert-manager-csi-driver-athenz-approver",
-        "driver": "docker.io/athenz/cert-manager-csi-driver-athenz"
+        "approver": "docker.io/athenz/csi-driver-athenz-approver",
+        "driver": "docker.io/athenz/csi-driver-athenz"
       },
-      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/cert-manager-csi-driver-athenz\n  approver: athenz/cert-manager-csi-driver-athenz-approver\nregistry: docker.io",
+      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/csi-driver-athenz\n  approver: athenz/csi-driver-athenz-approver\nregistry: docker.io",
       "type": "object"
     },
     "helm-values.image.tag": {

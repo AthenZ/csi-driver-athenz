@@ -2,23 +2,23 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "cert-manager-csi-driver-athenz.name" -}}
+{{- define "csi-driver-athenz.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "cert-manager-csi-driver-athenz.chart" -}}
+{{- define "csi-driver-athenz.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Common labels
 */}}
-{{- define "cert-manager-csi-driver-athenz.labels" -}}
-app.kubernetes.io/name: {{ include "cert-manager-csi-driver-athenz.name" . }}
-helm.sh/chart: {{ include "cert-manager-csi-driver-athenz.chart" . }}
+{{- define "csi-driver-athenz.labels" -}}
+app.kubernetes.io/name: {{ include "csi-driver-athenz.name" . }}
+helm.sh/chart: {{ include "csi-driver-athenz.chart" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -47,8 +47,8 @@ See https://github.com/cert-manager/cert-manager/issues/6329 for a list of linke
 Variants of the above image template which are addapted for the custom values format used in this chart:
     registry: docker.io
     repository:
-      driver: athenz/cert-manager-csi-driver-athenz
-      approver: athenz/cert-manager-csi-driver-athenz-approver
+      driver: athenz/csi-driver-athenz
+      approver: athenz/csi-driver-athenz-approver
     tag: vX.Y.Z
     digest:
       driver: sha256:...

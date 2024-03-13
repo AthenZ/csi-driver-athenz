@@ -95,5 +95,5 @@ func (f *Framework) Context() context.Context {
 }
 
 func CasesDescribe(text string, body func()) bool {
-	return Describe("[cert-manager-csi-driver-athenz] "+text, body)
+	return Describe("[csi-driver-athenz] "+text, body)
 }

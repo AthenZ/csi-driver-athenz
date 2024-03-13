@@ -70,8 +70,8 @@ test-e2e-deps: INSTALL_OPTIONS += --set app.issuer.name=csi-driver-athenz-ca
 test-e2e-deps: INSTALL_OPTIONS += --set app.driver.volumes[0].name=root-cas
 test-e2e-deps: INSTALL_OPTIONS += --set app.driver.volumes[0].secret.secretName=csi-driver-athenz-ca
 test-e2e-deps: INSTALL_OPTIONS += --set app.driver.volumeMounts[0].name=root-cas
-test-e2e-deps: INSTALL_OPTIONS += --set app.driver.volumeMounts[0].mountPath=/var/run/secrets/cert-manager-csi-driver-athenz
-test-e2e-deps: INSTALL_OPTIONS += --set app.driver.sourceCABundle=/var/run/secrets/cert-manager-csi-driver-athenz/ca.crt
+test-e2e-deps: INSTALL_OPTIONS += --set app.driver.volumeMounts[0].mountPath=/var/run/secrets/csi-driver-athenz
+test-e2e-deps: INSTALL_OPTIONS += --set app.driver.sourceCABundle=/var/run/secrets/csi-driver-athenz/ca.crt
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.zts=https://zts.athenz.io/zts/v1
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.dnsDomains="svc.cluster.local\,my.athenz.io"
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.certOrgName=athenz
