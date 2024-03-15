@@ -531,8 +531,8 @@
     },
     "helm-values.image.repository": {
       "default": {
-        "approver": "docker.io/athenz/csi-driver-athenz-approver",
-        "driver": "docker.io/athenz/csi-driver-athenz"
+        "approver": "docker.io/athenz/athenz-csi-driver-approver",
+        "driver": "docker.io/athenz/athenz-csi-driver"
       },
       "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/csi-driver-athenz\n  approver: athenz/csi-driver-athenz-approver\nregistry: docker.io",
       "type": "object"

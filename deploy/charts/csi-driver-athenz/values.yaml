@@ -3,15 +3,15 @@ image:
     # For example:
     #   registry: docker.io
     #   repository:
-    #     driver: athenz/csi-driver-athenz
-    #     approver: athenz/csi-driver-athenz-approver
+    #     driver: athenz/athenz-csi-driver
+    #     approver: athenz/athenz-csi-driver-approver
     # +docs:property
     # registry: docker.io
   repository:
     # Target image repository for the csi-driver driver DaemonSet.
-    driver: docker.io/athenz/csi-driver-athenz
+    driver: docker.io/athenz/athenz-csi-driver
     # Target image repository for the csi-driver approver Deployment.
-    approver: docker.io/athenz/csi-driver-athenz-approver
+    approver: docker.io/athenz/athenz-csi-driver-approver
 
   # Override the image tag to deploy by setting this variable.
   # If no value is set, the chart's appVersion is used.

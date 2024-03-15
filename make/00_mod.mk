@@ -25,17 +25,17 @@ go_manager_main_dir := ./cmd/csi
 go_manager_mod_dir := .
 go_manager_ldflags := -X $(repo_name)/internal/version.AppVersion=$(VERSION) -X $(repo_name)/internal/version.GitCommit=$(GITCOMMIT)
 oci_manager_base_image_flavor := csi-static
-oci_manager_image_name := docker.io/athenz/csi-driver-athenz
+oci_manager_image_name := docker.io/athenz/athenz-csi-driver
 oci_manager_image_tag := $(VERSION)
-oci_manager_image_name_development := athenz.local/csi-driver-athenz
+oci_manager_image_name_development := athenz.local/athenz-csi-driver
 
 go_approver_main_dir := ./cmd/approver
 go_approver_mod_dir := .
 go_approver_ldflags := -X $(repo_name)/internal/version.AppVersion=$(VERSION) -X $(repo_name)/internal/version.GitCommit=$(GITCOMMIT)
 oci_approver_base_image_flavor := static
-oci_approver_image_name := docker.io/athenz/csi-driver-athenz-approver
+oci_approver_image_name := docker.io/athenz/athenz-csi-driver-approver
 oci_approver_image_tag := $(VERSION)
-oci_approver_image_name_development := athenz.local/csi-driver-athenz-approver
+oci_approver_image_name_development := athenz.local/athenz-csi-driver-approver
 
 deploy_name := csi-driver-athenz
 deploy_namespace := cert-manager
