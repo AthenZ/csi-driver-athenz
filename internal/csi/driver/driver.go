@@ -48,6 +48,7 @@ const (
 	cloudMetaEndpoint = "http://169.254.169.254:80"
 	attrPodSubdomain  = "csi.cert-manager.athenz.io/pod-subdomain"
 	attrPodHostname   = "csi.cert-manager.athenz.io/pod-hostname"
+	attrPodService    = "csi.cert-manager.athenz.io/pod-service"
 	clusterZone       = "cluster.local"
 )
 
@@ -372,6 +373,11 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 
 	podSubdomain := meta.VolumeContext[attrPodSubdomain]
 	podHostname := meta.VolumeContext[attrPodHostname]
+	podService := meta.VolumeContext[attrPodService]
+
+	if podService == "" {
+		podService = service
+	}
 
 	if podHostname != "" {
 		podSubdomainComp := ""
@@ -380,8 +386,10 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 		}
 		hostList = append(hostList, fmt.Sprintf("%s%s.%s.svc.%s", podHostname, podSubdomainComp, saNamespace, clusterZone))
 	}
-	if service != "" {
-		hostList = append(hostList, fmt.Sprintf("%s.%s.svc.%s", service, saNamespace, clusterZone))
+	if podService != "" {
+		hostList = append(hostList, fmt.Sprintf("%s.%s.svc.%s", podService, saNamespace, clusterZone))
+		// K8S API server expects the san dns in this format if the certificate is to be used by a webhook
+		hostList = append(hostList, fmt.Sprintf("%s.%s.svc", podService, saNamespace))
 	}
 
 	uris := []*url.URL{spiffeUri}

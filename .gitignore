@@ -10,3 +10,5 @@ testbin/*
 .envrc
 
 example-app-*.yaml
+test.pub
+test.key.pem

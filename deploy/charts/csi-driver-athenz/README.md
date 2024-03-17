@@ -5,8 +5,8 @@
 #### **image.repository** ~ `object`
 > Default value:
 > ```yaml
-> approver: docker.io/athenz/csi-driver-athenz-approver
-> driver: docker.io/athenz/csi-driver-athenz
+> approver: docker.io/athenz/athenz-csi-driver-approver
+> driver: docker.io/athenz/athenz-csi-driver
 > ```
 
 Target image registry. This value is prepended to the target image repository, if set.  
@@ -15,8 +15,8 @@ For example:
 ```yaml
 registry: docker.io
 repository:
-  driver: athenz/csi-driver-athenz
-  approver: athenz/csi-driver-athenz-approver
+  driver: athenz/athenz-csi-driver
+  approver: athenz/athenz-csi-driver-approver
 ```
 
 
@@ -179,7 +179,7 @@ secret:
 #### **app.driver.csiDataDir** ~ `string`
 > Default value:
 > ```yaml
-> /var/run/csi-driver-athenz
+> /tmp/csi-driver-athenz
 > ```
 
 -- Configures the hostPath directory that the driver will write and mount volumes from.
