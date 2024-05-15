@@ -324,6 +324,11 @@ Override the image tag to deploy by setting this variable. If no value is set, t
 > ```
 
 -- Cloud region where the driver is running
+#### **app.approver.multiTenant** ~ `bool`
+> Default value:
+> ```yaml
+> false
+> ```
 #### **app.approver.replicaCount** ~ `number`
 > Default value:
 > ```yaml

@@ -9,6 +9,9 @@
         "commonLabels": {
           "$ref": "#/$defs/helm-values.commonLabels"
         },
+        "global": {
+          "$ref": "#/$defs/helm-values.global"
+        },
         "image": {
           "$ref": "#/$defs/helm-values.image"
         },
@@ -59,6 +62,9 @@
       "properties": {
         "metrics": {
           "$ref": "#/$defs/helm-values.app.approver.metrics"
+        },
+        "multiTenant": {
+          "$ref": "#/$defs/helm-values.app.approver.multiTenant"
         },
         "readinessProbe": {
           "$ref": "#/$defs/helm-values.app.approver.readinessProbe"
@@ -162,6 +168,10 @@
       "default": "ClusterIP",
       "description": "-- Service type to expose metrics.",
       "type": "string"
+    },
+    "helm-values.app.approver.multiTenant": {
+      "default": false,
+      "type": "boolean"
     },
     "helm-values.app.approver.readinessProbe": {
       "additionalProperties": false,
@@ -284,7 +294,7 @@
       "type": "object"
     },
     "helm-values.app.driver.csiDataDir": {
-      "default": "/var/run/csi-driver-athenz",
+      "default": "/tmp/csi-driver-athenz",
       "description": "-- Configures the hostPath directory that the driver will write and mount volumes from.",
       "type": "string"
     },
@@ -485,6 +495,9 @@
       "description": "Labels to apply to all resources",
       "type": "object"
     },
+    "helm-values.global": {
+      "description": "Global values shared across all (sub)charts"
+    },
     "helm-values.image": {
       "additionalProperties": false,
       "properties": {
@@ -534,7 +547,7 @@
         "approver": "docker.io/athenz/athenz-csi-driver-approver",
         "driver": "docker.io/athenz/athenz-csi-driver"
       },
-      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/csi-driver-athenz\n  approver: athenz/csi-driver-athenz-approver\nregistry: docker.io",
+      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/athenz-csi-driver\n  approver: athenz/athenz-csi-driver-approver\nregistry: docker.io",
       "type": "object"
     },
     "helm-values.image.tag": {

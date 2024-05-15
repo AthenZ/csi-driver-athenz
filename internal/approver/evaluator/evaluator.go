@@ -49,6 +49,10 @@ type Options struct {
 	// CertificateRequestDuration is the duration that users _must_ request for,
 	// else the request will be denied.
 	CertificateRequestDuration time.Duration
+
+	// Multi-tenancy is the flag to enable strict multi-tenancy support where
+	// namespace name has to match with the domain name.
+	MultiTenancy bool
 }
 
 // internal is the internal implementation of the evaluator that should be used
@@ -61,6 +65,10 @@ type internal struct {
 	// certificateRequestDuration is the duration that users _must_ request for,
 	// else the request will be denied.
 	certificateRequestDuration time.Duration
+
+	// Multi-tenancy is the flag to enable strict multi-tenancy support where
+	// namespace name has to match with the domain name.
+	multiTenancy bool
 }
 
 // New constructs a new evaluator.
@@ -68,6 +76,7 @@ func New(opts Options) Interface {
 	return &internal{
 		trustDomain:                opts.TrustDomain,
 		certificateRequestDuration: opts.CertificateRequestDuration,
+		multiTenancy:               opts.MultiTenancy,
 	}
 }
 

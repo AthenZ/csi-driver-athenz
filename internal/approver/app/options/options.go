@@ -67,6 +67,10 @@ type OptionsCertManager struct {
 	// IssuerRef is the issuer reference that will be used to match on created
 	// CertificateRequests.
 	IssuerRef cmmeta.ObjectReference
+
+	// Multi-tenancy is the flag to enable strict multi-tenancy support where
+	// namespace name has to match with the domain name.
+	MultiTenancy bool
 }
 
 func New() *Options {
@@ -90,6 +94,9 @@ func (o *Options) addCertManagerFlags(fs *pflag.FlagSet) {
 		"Kind of issuer which is matched against to evaluate on.")
 	fs.StringVar(&o.CertManager.IssuerRef.Group, "issuer-group", "cert-manager.io",
 		"Group of issuer which is matched against to evaluate on.")
+
+	fs.BoolVar(&o.CertManager.MultiTenancy, "multi-tenancy", false,
+		"Enable strict multi-tenancy support where namespace name has to match with the domain name.")
 }
 
 func (o *Options) addControllerFlags(fs *pflag.FlagSet) {

@@ -2,11 +2,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: sandbox
+  annotations:
+    athenz.io/domain: "athenz.experiments"
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: athenz.example
+  name: athenz.experiments.example
   namespace: sandbox
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -30,7 +32,7 @@ roleRef:
   name: example-app
 subjects:
 - kind: ServiceAccount
-  name: athenz.example
+  name: athenz.experiments.example
   namespace: sandbox
 ---
 apiVersion: apps/v1
@@ -50,7 +52,7 @@ spec:
       labels:
         app: my-csi-app
     spec:
-      serviceAccountName: athenz.example
+      serviceAccountName: athenz.experiments.example
       containers:
         - name: my-frontend
           image: busybox
