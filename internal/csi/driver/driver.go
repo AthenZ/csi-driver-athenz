@@ -202,6 +202,7 @@ func New(log logr.Logger, opts Options) (*Driver, error) {
 		trustDomain:                opts.TrustDomain,
 		certFileName:               opts.CertificateFileName,
 		keyFileName:                opts.KeyFileName,
+		caFileName:                 opts.CAFileName,
 		issuerRef:                  opts.IssuerRef,
 		rootCAs:                    opts.RootCAs,
 		certificateRequestDuration: opts.CertificateRequestDuration,
