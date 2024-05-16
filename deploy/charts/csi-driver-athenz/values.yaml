@@ -164,6 +164,7 @@ app:
 
   # -- Options for approver controller
   approver:
+    multiTenant: false
     # -- Number of replicas of the approver to run.
     replicaCount: 1
     # -- The signer name that csi-driver-athenz approver will be given

@@ -32,24 +32,20 @@ e2e-setup-cert-manager: | kind-cluster $(NEEDS_HELM) $(NEEDS_KUBECTL)
 		--set webhook.image.repository=$(quay.io/jetstack/cert-manager-webhook.REPO) \
 		--set webhook.image.tag=$(quay.io/jetstack/cert-manager-webhook.TAG) \
 		--set webhook.image.pullPolicy=Never \
-		--set startupapicheck.image.repository=$(quay.io/jetstack/cert-manager-ctl.REPO) \
-		--set startupapicheck.image.tag=$(quay.io/jetstack/cert-manager-ctl.TAG) \
+		--set startupapicheck.image.repository=$(quay.io/jetstack/cert-manager-startupapicheck.REPO) \
+		--set startupapicheck.image.tag=$(quay.io/jetstack/cert-manager-startupapicheck.TAG) \
 		--set startupapicheck.image.pullPolicy=Never \
 		cert-manager cert-manager >/dev/null
 
 .PHONY: e2e-setup-example
-e2e-setup-example: | e2e-setup-cert-manager kind-cluster $(NEEDS_KUBECTL)
+e2e-setup-example: | e2e-setup-cert-manager kind-cluster $(NEEDS_KUBECTL) $(NEEDS_CMCTL)
 	$(KUBECTL) apply --server-side -f ./deploy/example/clusterissuer.yaml
 
 	sleep 3
 
-	cr_name=$$($(KUBECTL) get cr -n cert-manager --no-headers -o custom-columns=":metadata.name") && \
-	$(KUBECTL) patch cr $$cr_name \
-		-n cert-manager \
-		--subresource status \
-		--type merge \
-		--patch '{"status": {"conditions": [{"type": "Approved", "status": "True", "reason": "manual"}]}}'
-
+	@# We can rely on the CR being called csi-driver-athenz-ca-1 in cert-manager v1.13+ thanks to
+	@# the StableCertificateRequestName feature gate being beta
+	$(CMCTL) approve -n cert-manager csi-driver-athenz-ca-1 || :
 	$(KUBECTL) wait --for=condition=ready clusterissuer csi-driver-athenz-ca
 
 # The "install" target can be run on its own with any currently active cluster,
@@ -78,12 +74,15 @@ test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.certOrgName=athenz
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.providerPrefix=athenz.
 test-e2e-deps: install
 
+E2E_FOCUS ?=
+
 .PHONY: test-e2e
 ## e2e end-to-end tests
 ## @category Testing
 test-e2e: test-e2e-deps | kind-cluster $(NEEDS_GINKGO) $(NEEDS_KUBECTL) $(ARTIFACTS)
 	$(GINKGO) \
 		--output-dir=$(ARTIFACTS) \
+		--focus="$(E2E_FOCUS)" \
 		--junit-report=junit-go-e2e.xml \
 		./test/e2e/ \
 		-ldflags $(go_manager_ldflags) \
