@@ -215,3 +215,42 @@ priorityClassName: ""
 
 # Labels to apply to all resources
 commonLabels: {}
+
+# Kubernetes node selector: node labels for pod assignment.
+# +docs:property=nodeSelector
+nodeSelector:
+  kubernetes.io/os: linux
+# Kubernetes affinity: constraints for pod assignment.
+#
+# For example:
+#   affinity:
+#     nodeAffinity:
+#      requiredDuringSchedulingIgnoredDuringExecution:
+#        nodeSelectorTerms:
+#        - matchExpressions:
+#          - key: foo.bar.com/role
+#            operator: In
+#            values:
+#            - master
+affinity: {}
+# Kubernetes pod tolerations for cert-manager-csi-driver-spiffe.
+#
+# For example:
+#   tolerations:
+#   - key: foo.bar.com/role
+#     operator: Equal
+#     value: master
+#     effect: NoSchedule
+tolerations: []
+# List of Kubernetes TopologySpreadConstraints.
+#
+# For example:
+#   topologySpreadConstraints:
+#   - maxSkew: 2
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels:
+#         app.kubernetes.io/instance: cert-manager
+#         app.kubernetes.io/component: controller
+topologySpreadConstraints: []

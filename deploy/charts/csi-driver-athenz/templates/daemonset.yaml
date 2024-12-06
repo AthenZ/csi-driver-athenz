@@ -20,9 +20,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "csi-driver-athenz.name" . }}
-      tolerations:
-        - effect: NoSchedule
-          operator: Exists
       containers:
         - name: node-driver-registrar
           image: "{{ template "image" (tuple .Values.app.driver.nodeDriverRegistrarImage $.Chart.AppVersion) }}"
@@ -129,6 +126,18 @@ spec:
 
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
 
       volumes:

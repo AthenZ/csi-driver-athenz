@@ -1,8 +1,13 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/$defs/helm-values",
   "$defs": {
     "helm-values": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
+        "affinity": {
+          "$ref": "#/$defs/helm-values.affinity"
+        },
         "app": {
           "$ref": "#/$defs/helm-values.app"
         },
@@ -18,14 +23,28 @@
         "imagePullSecrets": {
           "$ref": "#/$defs/helm-values.imagePullSecrets"
         },
+        "nodeSelector": {
+          "$ref": "#/$defs/helm-values.nodeSelector"
+        },
         "priorityClassName": {
           "$ref": "#/$defs/helm-values.priorityClassName"
+        },
+        "tolerations": {
+          "$ref": "#/$defs/helm-values.tolerations"
+        },
+        "topologySpreadConstraints": {
+          "$ref": "#/$defs/helm-values.topologySpreadConstraints"
         }
       },
-      "type": "object"
+      "additionalProperties": false
+    },
+    "helm-values.affinity": {
+      "description": "Kubernetes affinity: constraints for pod assignment.\n\nFor example:\naffinity:\n  nodeAffinity:\n   requiredDuringSchedulingIgnoredDuringExecution:\n     nodeSelectorTerms:\n     - matchExpressions:\n       - key: foo.bar.com/role\n         operator: In\n         values:\n         - master",
+      "type": "object",
+      "default": {}
     },
     "helm-values.app": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "approver": {
           "$ref": "#/$defs/helm-values.app.approver"
@@ -55,10 +74,10 @@
           "$ref": "#/$defs/helm-values.app.trustDomain"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "metrics": {
           "$ref": "#/$defs/helm-values.app.approver.metrics"
@@ -79,10 +98,10 @@
           "$ref": "#/$defs/helm-values.app.approver.signerName"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver.metrics": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "port": {
           "$ref": "#/$defs/helm-values.app.approver.metrics.port"
@@ -91,15 +110,15 @@
           "$ref": "#/$defs/helm-values.app.approver.metrics.service"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver.metrics.port": {
-      "default": 9402,
       "description": "-- Port for exposing Prometheus metrics on 0.0.0.0 on path '/metrics'.",
-      "type": "number"
+      "type": "number",
+      "default": 9402
     },
     "helm-values.app.approver.metrics.service": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "enabled": {
           "$ref": "#/$defs/helm-values.app.approver.metrics.service.enabled"
@@ -111,15 +130,15 @@
           "$ref": "#/$defs/helm-values.app.approver.metrics.service.type"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver.metrics.service.enabled": {
-      "default": true,
       "description": "-- Create a Service resource to expose metrics endpoint.",
-      "type": "boolean"
+      "type": "boolean",
+      "default": true
     },
     "helm-values.app.approver.metrics.service.servicemonitor": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "enabled": {
           "$ref": "#/$defs/helm-values.app.approver.metrics.service.servicemonitor.enabled"
@@ -137,72 +156,72 @@
           "$ref": "#/$defs/helm-values.app.approver.metrics.service.servicemonitor.scrapeTimeout"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver.metrics.service.servicemonitor.enabled": {
-      "default": false,
       "description": "Create Prometheus ServiceMonitor resource for csi-driver-athenz approver.",
-      "type": "boolean"
+      "type": "boolean",
+      "default": false
     },
     "helm-values.app.approver.metrics.service.servicemonitor.interval": {
-      "default": "10s",
       "description": "The interval that the Prometheus will scrape for metrics.",
-      "type": "string"
+      "type": "string",
+      "default": "10s"
     },
     "helm-values.app.approver.metrics.service.servicemonitor.labels": {
-      "default": {},
       "description": "Additional labels to give the ServiceMonitor resource.",
-      "type": "object"
+      "type": "object",
+      "default": {}
     },
     "helm-values.app.approver.metrics.service.servicemonitor.prometheusInstance": {
-      "default": "default",
       "description": "The value for the \"prometheus\" label on the ServiceMonitor. This allows for multiple Prometheus instances selecting difference ServiceMonitors using label selectors.",
-      "type": "string"
+      "type": "string",
+      "default": "default"
     },
     "helm-values.app.approver.metrics.service.servicemonitor.scrapeTimeout": {
-      "default": "5s",
       "description": "The timeout on each metric probe request.",
-      "type": "string"
+      "type": "string",
+      "default": "5s"
     },
     "helm-values.app.approver.metrics.service.type": {
-      "default": "ClusterIP",
       "description": "-- Service type to expose metrics.",
-      "type": "string"
+      "type": "string",
+      "default": "ClusterIP"
     },
     "helm-values.app.approver.multiTenant": {
-      "default": false,
-      "type": "boolean"
+      "type": "boolean",
+      "default": false
     },
     "helm-values.app.approver.readinessProbe": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "port": {
           "$ref": "#/$defs/helm-values.app.approver.readinessProbe.port"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.approver.readinessProbe.port": {
-      "default": 6060,
       "description": "-- Container port to expose csi-driver-athenz-approver HTTP readiness\nprobe on default network interface.",
-      "type": "number"
+      "type": "number",
+      "default": 6060
     },
     "helm-values.app.approver.replicaCount": {
-      "default": 1,
       "description": "-- Number of replicas of the approver to run.",
-      "type": "number"
+      "type": "number",
+      "default": 1
     },
     "helm-values.app.approver.resources": {
-      "default": {},
-      "type": "object"
+      "type": "object",
+      "default": {}
     },
     "helm-values.app.approver.signerName": {
-      "default": "clusterissuers.cert-manager.io/*",
       "description": "-- The signer name that csi-driver-athenz approver will be given\npermission to approve and deny. CertificateRequests referencing this signer name can be processed by the Athenz approver. See: https://cert-manager.io/docs/concepts/certificaterequest/#approval",
-      "type": "string"
+      "type": "string",
+      "default": "clusterissuers.cert-manager.io/*"
     },
     "helm-values.app.athenz": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "caCertFile": {
           "$ref": "#/$defs/helm-values.app.athenz.caCertFile"
@@ -229,7 +248,7 @@
           "$ref": "#/$defs/helm-values.app.athenz.zts"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.athenz.caCertFile": {
       "description": "-- Optional ZTS CA bundle"
@@ -256,12 +275,12 @@
       "description": "-- Athenz ZTS endpoint"
     },
     "helm-values.app.certificateRequestDuration": {
-      "default": "1h",
       "description": "-- Duration requested for requested certificates.",
-      "type": "string"
+      "type": "string",
+      "default": "1h"
     },
     "helm-values.app.driver": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "csiDataDir": {
           "$ref": "#/$defs/helm-values.app.driver.csiDataDir"
@@ -291,29 +310,29 @@
           "$ref": "#/$defs/helm-values.app.driver.volumes"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.driver.csiDataDir": {
-      "default": "/tmp/csi-driver-athenz",
       "description": "-- Configures the hostPath directory that the driver will write and mount volumes from.",
-      "type": "string"
+      "type": "string",
+      "default": "/tmp/csi-driver-athenz"
     },
     "helm-values.app.driver.livenessProbe": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "port": {
           "$ref": "#/$defs/helm-values.app.driver.livenessProbe.port"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.driver.livenessProbe.port": {
-      "default": 9809,
       "description": "-- The port that will expose the liveness of the csi-driver",
-      "type": "number"
+      "type": "number",
+      "default": 9809
     },
     "helm-values.app.driver.livenessProbeImage": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "pullPolicy": {
           "$ref": "#/$defs/helm-values.app.driver.livenessProbeImage.pullPolicy"
@@ -328,29 +347,29 @@
           "$ref": "#/$defs/helm-values.app.driver.livenessProbeImage.tag"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.driver.livenessProbeImage.pullPolicy": {
-      "default": "IfNotPresent",
       "description": "-- Kubernetes imagePullPolicy on liveness probe.",
-      "type": "string"
+      "type": "string",
+      "default": "IfNotPresent"
     },
     "helm-values.app.driver.livenessProbeImage.registry": {
       "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: registry.k8s.io\nrepository: sig-storage/livenessprobe",
       "type": "string"
     },
     "helm-values.app.driver.livenessProbeImage.repository": {
-      "default": "registry.k8s.io/sig-storage/livenessprobe",
       "description": "-- Target image repository.",
-      "type": "string"
+      "type": "string",
+      "default": "registry.k8s.io/sig-storage/livenessprobe"
     },
     "helm-values.app.driver.livenessProbeImage.tag": {
-      "default": "v2.12.0",
       "description": "Override the image tag to deploy by setting this variable. If no value is set, the chart's appVersion is used.",
-      "type": "string"
+      "type": "string",
+      "default": "v2.12.0"
     },
     "helm-values.app.driver.nodeDriverRegistrarImage": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "digest": {
           "$ref": "#/$defs/helm-values.app.driver.nodeDriverRegistrarImage.digest"
@@ -368,40 +387,40 @@
           "$ref": "#/$defs/helm-values.app.driver.nodeDriverRegistrarImage.tag"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.driver.nodeDriverRegistrarImage.digest": {
       "description": "Target image digest. Override any tag, if set.\nFor example:\ndigest: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20",
       "type": "string"
     },
     "helm-values.app.driver.nodeDriverRegistrarImage.pullPolicy": {
-      "default": "IfNotPresent",
       "description": "Kubernetes imagePullPolicy on node-driver.",
-      "type": "string"
+      "type": "string",
+      "default": "IfNotPresent"
     },
     "helm-values.app.driver.nodeDriverRegistrarImage.registry": {
       "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: registry.k8s.io\nrepository: sig-storage/csi-node-driver-registrar",
       "type": "string"
     },
     "helm-values.app.driver.nodeDriverRegistrarImage.repository": {
-      "default": "registry.k8s.io/sig-storage/csi-node-driver-registrar",
       "description": "-- Target image repository.",
-      "type": "string"
+      "type": "string",
+      "default": "registry.k8s.io/sig-storage/csi-node-driver-registrar"
     },
     "helm-values.app.driver.nodeDriverRegistrarImage.tag": {
-      "default": "v2.11.1",
       "description": "Override the image tag to deploy by setting this variable. If no value is set, the chart's appVersion is used.",
-      "type": "string"
+      "type": "string",
+      "default": "v2.11.1"
     },
     "helm-values.app.driver.resources": {
-      "default": {},
-      "type": "object"
+      "type": "object",
+      "default": {}
     },
     "helm-values.app.driver.sourceCABundle": {
       "description": "-- Optional file containing a CA bundle that will be propagated to\nmanaged volumes."
     },
     "helm-values.app.driver.volumeFileName": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "ca": {
           "$ref": "#/$defs/helm-values.app.driver.volumeFileName.ca"
@@ -413,40 +432,40 @@
           "$ref": "#/$defs/helm-values.app.driver.volumeFileName.key"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.driver.volumeFileName.ca": {
-      "default": "ca.crt",
       "description": "-- File name where the CA bundles are written to, if enabled.",
-      "type": "string"
+      "type": "string",
+      "default": "ca.crt"
     },
     "helm-values.app.driver.volumeFileName.cert": {
-      "default": "tls.crt",
       "description": "-- File name which signed certificates are written to in volumes.",
-      "type": "string"
+      "type": "string",
+      "default": "tls.crt"
     },
     "helm-values.app.driver.volumeFileName.key": {
-      "default": "tls.key",
       "description": "-- File name which private keys are written to in volumes.",
-      "type": "string"
+      "type": "string",
+      "default": "tls.key"
     },
     "helm-values.app.driver.volumeMounts": {
-      "default": [],
       "description": "- name: root-cas\nsecret:\n  secretName: root-ca-bundle\n-- Optional extra volume mounts. Useful for mounting root CAs",
-      "items": {},
-      "type": "array"
+      "type": "array",
+      "default": [],
+      "items": {}
     },
     "helm-values.app.driver.volumes": {
-      "default": [],
       "description": "-- Optional extra volumes. Useful for mounting root CAs",
-      "items": {},
-      "type": "array"
+      "type": "array",
+      "default": [],
+      "items": {}
     },
     "helm-values.app.extraCertificateRequestAnnotations": {
       "description": "List of annotations to add to certificate requests\n\nFor example:\nextraCertificateRequestAnnotations: app=csi-driver-athenz,foo=bar"
     },
     "helm-values.app.issuer": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "group": {
           "$ref": "#/$defs/helm-values.app.issuer.group"
@@ -458,48 +477,48 @@
           "$ref": "#/$defs/helm-values.app.issuer.name"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.app.issuer.group": {
-      "default": "cert-manager.io",
       "description": "-- Issuer group which is used to serve this Trust Domain.",
-      "type": "string"
+      "type": "string",
+      "default": "cert-manager.io"
     },
     "helm-values.app.issuer.kind": {
-      "default": "ClusterIssuer",
       "description": "-- Issuer kind which is used to serve this Trust Domain.",
-      "type": "string"
+      "type": "string",
+      "default": "ClusterIssuer"
     },
     "helm-values.app.issuer.name": {
-      "default": "athenz-ca",
       "description": "-- Issuer name which is used to serve this Trust Domain.",
-      "type": "string"
+      "type": "string",
+      "default": "athenz-ca"
     },
     "helm-values.app.logLevel": {
-      "default": 1,
       "description": "-- Verbosity of cert-manager-csi-driver logging.",
-      "type": "number"
+      "type": "number",
+      "default": 1
     },
     "helm-values.app.name": {
-      "default": "csi.cert-manager.athenz.io",
       "description": "-- The name for the CSI driver installation.",
-      "type": "string"
+      "type": "string",
+      "default": "csi.cert-manager.athenz.io"
     },
     "helm-values.app.trustDomain": {
-      "default": "cluster.local",
       "description": "-- The Trust Domain for this driver.",
-      "type": "string"
+      "type": "string",
+      "default": "cluster.local"
     },
     "helm-values.commonLabels": {
-      "default": {},
       "description": "Labels to apply to all resources",
-      "type": "object"
+      "type": "object",
+      "default": {}
     },
     "helm-values.global": {
       "description": "Global values shared across all (sub)charts"
     },
     "helm-values.image": {
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
         "digest": {
           "$ref": "#/$defs/helm-values.image.digest"
@@ -514,10 +533,10 @@
           "$ref": "#/$defs/helm-values.image.tag"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.image.digest": {
-      "additionalProperties": false,
+      "type": "object",
       "default": {},
       "properties": {
         "approver": {
@@ -527,7 +546,7 @@
           "$ref": "#/$defs/helm-values.image.digest.driver"
         }
       },
-      "type": "object"
+      "additionalProperties": false
     },
     "helm-values.image.digest.approver": {
       "description": "Target csi-driver approver digest. Override any tag, if set.\nFor example:\napprover: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20",
@@ -538,34 +557,51 @@
       "type": "string"
     },
     "helm-values.image.pullPolicy": {
-      "default": "IfNotPresent",
       "description": "-- Kubernetes imagePullPolicy on DaemonSet.",
-      "type": "string"
+      "type": "string",
+      "default": "IfNotPresent"
     },
     "helm-values.image.repository": {
+      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/athenz-csi-driver\n  approver: athenz/athenz-csi-driver-approver\nregistry: docker.io",
+      "type": "object",
       "default": {
         "approver": "docker.io/athenz/athenz-csi-driver-approver",
         "driver": "docker.io/athenz/athenz-csi-driver"
-      },
-      "description": "Target image registry. This value is prepended to the target image repository, if set.\nFor example:\nregistry: docker.io\nrepository:\n  driver: athenz/athenz-csi-driver\n  approver: athenz/athenz-csi-driver-approver\nregistry: docker.io",
-      "type": "object"
+      }
     },
     "helm-values.image.tag": {
       "description": "Override the image tag to deploy by setting this variable. If no value is set, the chart's appVersion is used.",
       "type": "string"
     },
     "helm-values.imagePullSecrets": {
-      "default": [],
       "description": "-- Optional secrets used for pulling the csi-driver-athenz and csi-driver-athenz-approver container images",
-      "items": {},
-      "type": "array"
+      "type": "array",
+      "default": [],
+      "items": {}
+    },
+    "helm-values.nodeSelector": {
+      "description": "Kubernetes node selector: node labels for pod assignment.",
+      "type": "object",
+      "default": {
+        "kubernetes.io/os": "linux"
+      }
     },
     "helm-values.priorityClassName": {
-      "default": "",
       "description": "-- Optional priority class to be used for the csi-driver pods.",
-      "type": "string"
+      "type": "string",
+      "default": ""
+    },
+    "helm-values.tolerations": {
+      "description": "Kubernetes pod tolerations for cert-manager-csi-driver-spiffe.\n\nFor example:\ntolerations:\n- key: foo.bar.com/role\n  operator: Equal\n  value: master\n  effect: NoSchedule",
+      "type": "array",
+      "default": [],
+      "items": {}
+    },
+    "helm-values.topologySpreadConstraints": {
+      "description": "List of Kubernetes TopologySpreadConstraints.\n\nFor example:\ntopologySpreadConstraints:\n- maxSkew: 2\n  topologyKey: topology.kubernetes.io/zone\n  whenUnsatisfiable: ScheduleAnyway\n  labelSelector:\n    matchLabels:\n      app.kubernetes.io/instance: cert-manager\n      app.kubernetes.io/component: controller",
+      "type": "array",
+      "default": [],
+      "items": {}
     }
-  },
-  "$ref": "#/$defs/helm-values",
-  "$schema": "http://json-schema.org/draft-07/schema#"
+  }
 }
