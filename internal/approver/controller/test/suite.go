@@ -29,8 +29,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2/klogr"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/approver/controller"
@@ -82,6 +84,11 @@ var _ = Context("Approval", func() {
 			LeaderElectionID:              "csi-driver-athenz-approver",
 			LeaderElectionReleaseOnCancel: true,
 			Logger:                        log,
+			Controller: config.Controller{
+				// need to skip unique controller name validation
+				// since all tests need a dedicated controller
+				SkipNameValidation: ptr.To(true),
+			},
 		})
 		Expect(err).NotTo(HaveOccurred())
 
