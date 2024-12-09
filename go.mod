@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.36.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/spiffe/go-spiffe/v2 v2.3.0
+	github.com/spiffe/go-spiffe/v2 v2.4.0
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.31.3
