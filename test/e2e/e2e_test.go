@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/AthenZ/csi-driver-athenz/test/e2e/framework/config"
+
 	_ "github.com/AthenZ/csi-driver-athenz/test/e2e/suite"
 )
 

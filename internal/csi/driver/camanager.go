@@ -22,10 +22,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AthenZ/csi-driver-athenz/internal/csi/rootca"
-	"github.com/AthenZ/csi-driver-athenz/internal/version"
 	"github.com/cert-manager/csi-lib/storage"
 	"github.com/go-logr/logr"
+
+	"github.com/AthenZ/csi-driver-athenz/internal/csi/rootca"
+	"github.com/AthenZ/csi-driver-athenz/internal/version"
 )
 
 // camanager is a process responsible for distributing trust bundles to

@@ -45,12 +45,11 @@ api_docs_package := $(repo_name)/pkg/apis/trust/v1alpha1
 api_docs_branch := main
 
 helm_chart_source_dir := deploy/charts/csi-driver-athenz
-helm_chart_name := csi-driver-athenz
+helm_chart_image_name := docker.io/athenz/charts/csi-driver-athenz
 helm_chart_version := $(VERSION)
 helm_labels_template_name := csi-driver-athenz.labels
-helm_docs_use_helm_tool := 1
-helm_generate_schema := 1 
-helm_verify_values := 1 
+
+golangci_lint_config := .golangci.yaml
 
 define helm_values_mutation_function
 $(YQ) \
@@ -63,5 +62,5 @@ endef
 images_amd64 ?=
 images_arm64 ?=
 
-images_amd64 += docker.io/library/busybox:1.36.1-musl@sha256:b9d056b83bb6446fee29e89a7fcf10203c562c1f59586a6e2f39c903597bda34
-images_arm64 += docker.io/library/busybox:1.36.1-musl@sha256:648143a312f16e5b5a6f64dfa4024a281fb4a30467500ca8b0091a9984f1c751
+images_amd64 += docker.io/library/busybox:1.36.1-musl@sha256:c9477131d513ea8e07b3d5adc3225a6e792dd8b3ffaa38924e175c0f3d1224da
+images_arm64 += docker.io/library/busybox:1.36.1-musl@sha256:625be856d71c73ee1c2cbdfafcf0f5f9b313ecd2cab9b53b03226babe8d9a964

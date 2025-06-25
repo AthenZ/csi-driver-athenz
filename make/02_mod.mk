@@ -25,13 +25,13 @@ include make/test-unit.mk
 ## @category [shared] Release
 release: $(helm_chart_archive)
 	$(MAKE) oci-push-manager oci-push-approver
+	$(MAKE) helm-chart-oci-push
 
 	@echo "RELEASE_OCI_MANAGER_IMAGE=$(oci_manager_image_name)" >> "$(GITHUB_OUTPUT)"
 	@echo "RELEASE_OCI_MANAGER_TAG=$(oci_manager_image_tag)" >> "$(GITHUB_OUTPUT)"
 	@echo "RELEASE_OCI_APPROVER_IMAGE=$(oci_manager_image_name)" >> "$(GITHUB_OUTPUT)"
 	@echo "RELEASE_OCI_APPROVER_TAG=$(oci_manager_image_tag)" >> "$(GITHUB_OUTPUT)"
-	@echo "RELEASE_HELM_CHART_NAME=$(helm_chart_name)" >> "$(GITHUB_OUTPUT)"
+	@echo "RELEASE_HELM_CHART_IMAGE=$(helm_chart_image_name)" >> "$(GITHUB_OUTPUT)"
 	@echo "RELEASE_HELM_CHART_VERSION=$(helm_chart_version)" >> "$(GITHUB_OUTPUT)"
-	@echo "RELEASE_HELM_CHART_TAR=$(helm_chart_archive)" >> "$(GITHUB_OUTPUT)"
 
 	@echo "Release complete!"

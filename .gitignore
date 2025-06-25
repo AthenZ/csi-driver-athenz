@@ -12,3 +12,4 @@ testbin/*
 example-app-*.yaml
 test.pub
 test.key.pem
+.idea/

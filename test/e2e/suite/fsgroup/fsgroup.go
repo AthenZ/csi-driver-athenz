@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"os/exec"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/AthenZ/csi-driver-athenz/test/e2e/framework"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = framework.CasesDescribe("FSGroup", func() {
@@ -45,7 +46,7 @@ var _ = framework.CasesDescribe("FSGroup", func() {
 				Namespace:    f.Namespace.Name,
 			},
 			Spec: corev1.PodSpec{
-				Volumes: []corev1.Volume{corev1.Volume{
+				Volumes: []corev1.Volume{{
 					Name: "csi-driver-athenz",
 					VolumeSource: corev1.VolumeSource{
 						CSI: &corev1.CSIVolumeSource{
@@ -62,12 +63,12 @@ var _ = framework.CasesDescribe("FSGroup", func() {
 					RunAsGroup: pointer.Int64(1541),
 				},
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name:    "my-container",
 						Image:   "busybox",
 						Command: []string{"sleep", "10000"},
 						VolumeMounts: []corev1.VolumeMount{
-							corev1.VolumeMount{
+							{
 								Name:      "csi-driver-athenz",
 								MountPath: "/var/run/secrets/my-pod",
 							},

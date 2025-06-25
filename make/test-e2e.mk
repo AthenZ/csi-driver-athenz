@@ -40,9 +40,7 @@ e2e-setup-cert-manager: | kind-cluster $(NEEDS_HELM) $(NEEDS_KUBECTL)
 .PHONY: e2e-setup-example
 e2e-setup-example: | e2e-setup-cert-manager kind-cluster $(NEEDS_KUBECTL) $(NEEDS_CMCTL)
 	$(KUBECTL) apply --server-side -f ./deploy/example/clusterissuer.yaml
-
 	sleep 3
-
 	@# We can rely on the CR being called csi-driver-athenz-ca-1 in cert-manager v1.13+ thanks to
 	@# the StableCertificateRequestName feature gate being beta
 	$(CMCTL) approve -n cert-manager csi-driver-athenz-ca-1 || :
@@ -55,6 +53,9 @@ e2e-setup-example: | e2e-setup-cert-manager kind-cluster $(NEEDS_KUBECTL) $(NEED
 ifeq ($(findstring test-e2e,$(MAKECMDGOALS)),test-e2e)
 install: e2e-setup-example kind-cluster oci-load-manager oci-load-approver
 endif
+
+E2E_RUNTIME_CONFIG_MAP_NAME ?= runtime-config-map
+E2E_FOCUS ?=
 
 test-e2e-deps: INSTALL_OPTIONS :=
 test-e2e-deps: INSTALL_OPTIONS += --set image.repository.driver=$(oci_manager_image_name_development)
@@ -72,9 +73,8 @@ test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.zts=https://zts.athenz.io/zts
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.dnsDomains="svc.cluster.local\,my.athenz.io"
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.certOrgName=athenz
 test-e2e-deps: INSTALL_OPTIONS += --set app.athenz.providerPrefix=athenz.
+#test-e2e-deps: INSTALL_OPTIONS += --set app.runtimeIssuanceConfigMap=$(E2E_RUNTIME_CONFIG_MAP_NAME)
 test-e2e-deps: install
-
-E2E_FOCUS ?=
 
 .PHONY: test-e2e
 ## e2e end-to-end tests
@@ -84,8 +84,9 @@ test-e2e: test-e2e-deps | kind-cluster $(NEEDS_GINKGO) $(NEEDS_KUBECTL) $(ARTIFA
 		--output-dir=$(ARTIFACTS) \
 		--focus="$(E2E_FOCUS)" \
 		--junit-report=junit-go-e2e.xml \
+		--ldflags "$(go_manager_ldflags)" \
 		./test/e2e/ \
-		-ldflags $(go_manager_ldflags) \
 		-- \
 		--kubeconfig-path=$(CURDIR)/$(kind_kubeconfig) \
-		--kubectl-path=$(KUBECTL)
+		--kubectl-path=$(KUBECTL) \
+#		--runtime-issuance-config-map-name=$(E2E_RUNTIME_CONFIG_MAP_NAME)

@@ -21,9 +21,10 @@ import (
 
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/spf13/pflag"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/flags"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 // Options are the CSI Approver flag options.

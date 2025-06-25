@@ -21,9 +21,10 @@ import (
 
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/spf13/pflag"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/flags"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 // Options are the CSI Driver flag options.
@@ -100,7 +101,7 @@ type OptionsAthenz struct {
 	// ZTS is the URL of the ZTS server.
 	ZTS string
 
-	// Provider prefix for the backend provider in ZTS which is responsible for verifying and 
+	// Provider prefix for the backend provider in ZTS which is responsible for verifying and
 	// issuing the identity.
 	ProviderPrefix string
 
@@ -148,9 +149,9 @@ func (o *Options) addCertManagerFlags(fs *pflag.FlagSet) {
 		"The trust domain that will be requested for on created CertificateRequests.")
 	fs.DurationVar(&o.CertManager.CertificateRequestDuration, "certificate-request-duration", time.Hour,
 		"The duration that created CertificateRequests will use.")
-	
+
 	fs.StringToStringVar(&o.CertManager.CertificateRequestAnnotations, "extra-certificate-request-annotations", map[string]string{},
-	"Comma-separated list of extra annotations to add to certificate requests e.g '--extra-certificate-request-annotations=hello=world,test=annotation'")
+		"Comma-separated list of extra annotations to add to certificate requests e.g '--extra-certificate-request-annotations=hello=world,test=annotation'")
 
 	fs.StringVar(&o.CertManager.IssuerRef.Name, "issuer-name", "athenz-ca",
 		"Name of the issuer that CertificateRequests will be created for.")
