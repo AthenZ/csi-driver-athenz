@@ -40,7 +40,7 @@ var _ = framework.CasesDescribe("CA rotation", func() {
 
 		serviceAccount := corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod",
+				Name:      "athenz.test-pod",
 				Namespace: f.Namespace.Name,
 			},
 		}
@@ -71,7 +71,7 @@ var _ = framework.CasesDescribe("CA rotation", func() {
 			},
 			Subjects: []rbacv1.Subject{{
 				Kind:      "ServiceAccount",
-				Name:      "test-pod",
+				Name:      "athenz.test-pod",
 				Namespace: f.Namespace.Name,
 			}},
 		}
@@ -92,7 +92,7 @@ var _ = framework.CasesDescribe("CA rotation", func() {
 						},
 					},
 				}},
-				ServiceAccountName: "test-pod",
+				ServiceAccountName: "athenz.test-pod",
 				Containers: []corev1.Container{
 					{
 						Name:    "my-container",

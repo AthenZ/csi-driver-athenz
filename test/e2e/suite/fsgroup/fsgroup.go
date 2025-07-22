@@ -83,7 +83,7 @@ var _ = framework.CasesDescribe("FSGroup", func() {
 		By("Creating test resources")
 		serviceAccount = corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-pod-",
+				GenerateName: "athenz.test-pod-",
 				Namespace:    f.Namespace.Name,
 			},
 		}

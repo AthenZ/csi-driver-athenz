@@ -49,6 +49,7 @@ const (
 	attrPodSubdomain  = "csi.cert-manager.athenz.io/pod-subdomain"
 	attrPodHostname   = "csi.cert-manager.athenz.io/pod-hostname"
 	attrPodService    = "csi.cert-manager.athenz.io/pod-service"
+	attrNSForDomain   = "csi.cert-manager.athenz.io/use-namespace-for-domain"
 	clusterZone       = "cluster.local"
 )
 
@@ -344,12 +345,33 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 	}
 
 	spiffeID := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", d.trustDomain, saNamespace, saName)
+	commonName := saName
+	domain, service := extractDomainService(saName)
+
+	useNSForDomain := meta.VolumeContext[attrNSForDomain]
+	// if the non-standard service account annotation is set, then we will derive the athenz domain name from the
+	// namespace name and the service account name
+	if useNSForDomain == "true" {
+		annotations, err := getNamespaceAnnotations(saNamespace)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get domain namespace annotations: %w", err)
+		}
+		domain = getDomainFromNamespaceAnnotations(annotations)
+		spiffeID = fmt.Sprintf("spiffe://%s/ns/%s/sa/%s.%s", d.trustDomain, saNamespace, domain, saName)
+		commonName = fmt.Sprintf("%s.%s", domain, saName)
+		service = saName
+	}
+
+	if domain == "" {
+		return nil, fmt.Errorf("no domain found in either SA name OR in namespace annotations: %s", saNamespace)
+	}
+
 	spiffeUri, err := url.Parse(spiffeID)
 	if err != nil {
 		return nil, fmt.Errorf("internal error crafting X.509 URI: %w", err)
 	}
 
-	subj := pkix.Name{CommonName: saName}
+	subj := pkix.Name{CommonName: commonName}
 	if d.certCountryName != "" {
 		subj.Country = []string{d.certCountryName}
 	}
@@ -357,11 +379,8 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 		subj.Organization = []string{d.certOrgName}
 	}
 
-	domain, service := extractDomainService(saName)
 	hyphenDomain := strings.Replace(domain, ".", "-", -1)
-
 	hostList := []string{}
-
 	if len(d.dnsDomains) > 0 {
 		dnsDomains := strings.Split(d.dnsDomains, ",")
 		for _, dnsDomain := range dnsDomains {
@@ -441,8 +460,8 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 		},
 	)
 
-	// Calculate the next issuance time before we write any data to file, so in
-	// the cases where this errors, we are not left in a bad state.
+	// Calculate the next issuance time before we write any data to file,
+	// so if the write fails, we are not left in a bad state.
 	nextIssuanceTime, err := calculateNextIssuanceTime(chain)
 	if err != nil {
 		return fmt.Errorf("failed to calculate next issuance time: %w", err)

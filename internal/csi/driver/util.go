@@ -17,6 +17,7 @@ limitations under the License.
 package driver
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -29,6 +30,13 @@ import (
 	"time"
 
 	"github.com/cert-manager/csi-lib/metadata"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+)
+
+const (
+	AthenzDomainAnnotation = "athenz.io/domain"
 )
 
 // generatePrivateKey generates an ECDSA private key, which is the only currently supported type
@@ -94,4 +102,27 @@ func appendUri(uriList []*url.URL, uriValue string) []*url.URL {
 		uriList = append(uriList, uri)
 	}
 	return uriList
+}
+
+func getNamespaceAnnotations(namespace string) (map[string]string, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("non-standard SA fallabck: failed to get in cluster config: %w", err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("non-standard SA fallabck: failed to get clientset: %w", err)
+	}
+	ns, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("non-standard SA fallabck: failed to get namespace: %w", err)
+	}
+	return ns.GetAnnotations(), nil
+}
+
+func getDomainFromNamespaceAnnotations(annotations map[string]string) string {
+	if domain, ok := annotations[AthenzDomainAnnotation]; ok {
+		return domain
+	}
+	return ""
 }
