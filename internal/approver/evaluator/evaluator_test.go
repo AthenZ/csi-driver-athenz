@@ -128,10 +128,10 @@ func Test_Evaluate(t *testing.T) {
 			req: func(t *testing.T) *cmapi.CertificateRequest {
 				csr, err := utilpki.GenerateCSR(&cmapi.Certificate{
 					Spec: cmapi.CertificateSpec{
-						PrivateKey: &cmapi.CertificatePrivateKey{Algorithm: cmapi.ECDSAKeyAlgorithm},
-						URIs:       []string{"spiffe://foo.bar/ns/sandbox/sa/sleep"},
-						CommonName: "example.com",
-						IPAddresses:[]string{"1.2.3.4"},
+						PrivateKey:  &cmapi.CertificatePrivateKey{Algorithm: cmapi.ECDSAKeyAlgorithm},
+						URIs:        []string{"spiffe://foo.bar/ns/sandbox/sa/sleep"},
+						CommonName:  "example.com",
+						IPAddresses: []string{"1.2.3.4"},
 					},
 				})
 				assert.NoError(t, err)

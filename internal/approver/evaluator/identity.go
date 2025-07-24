@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	ATHENZ_DOMAIN_ANNOTATION = "athenz.io/domain"
+	AthenzDomainAnnotation = "athenz.io/domain"
 )
 
 // validateIdentity validates that the SPIFFE ID contained in the X.509
@@ -46,13 +46,25 @@ func (i *internal) validateIdentity(csr *x509.CertificateRequest, username strin
 		return fmt.Errorf("URI scheme is not spiffe: %s", csr.URIs[0].Scheme)
 	}
 
-	expSpiffeID := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", i.trustDomain, split[2], split[3])
+	namespace := split[2]
+	saName := split[3]
+	expSpiffeID := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", i.trustDomain, namespace, saName)
 	if csr.URIs[0].String() != expSpiffeID {
-		return fmt.Errorf("unexpected SPIFFE ID requested, exp=%q got=%q", expSpiffeID, csr.URIs[0].String())
+		// check fallback format for non-standard service account names
+		annotations, err := getNamespaceAnnotations(namespace)
+		if err != nil {
+			return fmt.Errorf("validateIdentity in approver: failed to get namespace annotations for %s: %w", namespace, err)
+		}
+		domain := getDomainFromNamespaceAnnotations(annotations)
+		expectedSAComponent := fmt.Sprintf("%s.%s", domain, saName)
+		expSpiffeID = fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", i.trustDomain, namespace, expectedSAComponent)
+		if csr.URIs[0].String() != expSpiffeID {
+			return fmt.Errorf("unexpected SPIFFE ID requested, exp=%q got=%q", expSpiffeID, csr.URIs[0].String())
+		}
 	}
 
 	if i.multiTenancy {
-		err := validateIdentityDomain(split[2], split[3])
+		err := validateIdentityDomain(namespace, saName)
 		if err != nil {
 			return err
 		}
@@ -64,26 +76,22 @@ func (i *internal) validateIdentity(csr *x509.CertificateRequest, username strin
 func validateIdentityDomain(namespace, serviceAccount string) error {
 	dashedDomain := getDashedDomain(getDomainFromServiceAccount(serviceAccount))
 	if namespace != dashedDomain {
-		// check against the annotation on the namespace
-		config, err := rest.InClusterConfig()
+		annotations, err := getNamespaceAnnotations(namespace)
 		if err != nil {
-			return fmt.Errorf("validateIdentity in approver: failed to get in cluster config: %w", err)
+			return fmt.Errorf("validateIdentity in approver: failed to get namespace annotations for %s: %w", namespace, err)
 		}
-		clientset, err := kubernetes.NewForConfig(config)
-		if err != nil {
-			return fmt.Errorf("validateIdentity in approver: failed to get clientset: %w", err)
+		if annotations == nil || annotations[AthenzDomainAnnotation] == "" {
+			return fmt.Errorf("validateIdentity in approver: namespace %s does not have the %s annotation", namespace, AthenzDomainAnnotation)
 		}
-		ns, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("validateIdentity in approver: failed to get namespace: %w", err)
-		}
-		annotations := ns.GetAnnotations()
 		domain := getDomainFromServiceAccount(serviceAccount)
-		if annotations == nil || annotations[ATHENZ_DOMAIN_ANNOTATION] == "" {
-			return fmt.Errorf("validateIdentity in approver: namespace %s does not have the %s annotation", namespace, ATHENZ_DOMAIN_ANNOTATION)
-		}
-		if annotations[ATHENZ_DOMAIN_ANNOTATION] != domain {
-			return fmt.Errorf("domain from service account %s and namespace annotation value %s do not match.", domain, annotations[ATHENZ_DOMAIN_ANNOTATION])
+		if annotations[AthenzDomainAnnotation] != domain {
+			// check fallback format for non-standard service account names
+			domainFromNS := getDomainFromNamespaceAnnotations(annotations)
+			dashedNSDomain := getDashedDomain(domainFromNS)
+			if namespace != dashedNSDomain {
+				return fmt.Errorf("domain %s or namespace annotation value %s do not match with namespace name %s", domain, annotations[AthenzDomainAnnotation], namespace)
+			}
+
 		}
 	}
 	return nil
@@ -105,4 +113,27 @@ func getDashedDomain(domain string) string {
 	domain = strings.ReplaceAll(domain, "-", "--")
 	domain = strings.ReplaceAll(domain, ".", "-")
 	return domain
+}
+
+func getNamespaceAnnotations(namespace string) (map[string]string, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("validateIdentity in approver: failed to get in cluster config: %w", err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("validateIdentity in approver: failed to get clientset: %w", err)
+	}
+	ns, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("validateIdentity in approver: failed to get namespace: %w", err)
+	}
+	return ns.GetAnnotations(), nil
+}
+
+func getDomainFromNamespaceAnnotations(annotations map[string]string) string {
+	if domain, ok := annotations[AthenzDomainAnnotation]; ok {
+		return domain
+	}
+	return ""
 }
