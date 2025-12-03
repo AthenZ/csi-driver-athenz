@@ -76,3 +76,5 @@ spec:
             volumeAttributes:
               csi.cert-manager.athenz.io/pod-subdomain: "my-subdomain"
               csi.cert-manager.athenz.io/pod-hostname: "my-hostname"
+              csi.cert-manager.athenz.io/refresh-interval: "1h"
+

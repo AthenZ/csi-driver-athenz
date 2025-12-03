@@ -45,12 +45,14 @@ import (
 )
 
 const (
-	cloudMetaEndpoint = "http://169.254.169.254:80"
-	attrPodSubdomain  = "csi.cert-manager.athenz.io/pod-subdomain"
-	attrPodHostname   = "csi.cert-manager.athenz.io/pod-hostname"
-	attrPodService    = "csi.cert-manager.athenz.io/pod-service"
-	attrNSForDomain   = "csi.cert-manager.athenz.io/use-namespace-for-domain"
-	clusterZone       = "cluster.local"
+	cloudMetaEndpoint      = "http://169.254.169.254:80"
+	attrPodSubdomain       = "csi.cert-manager.athenz.io/pod-subdomain"
+	attrPodHostname        = "csi.cert-manager.athenz.io/pod-hostname"
+	attrPodService         = "csi.cert-manager.athenz.io/pod-service"
+	attrNSForDomain        = "csi.cert-manager.athenz.io/use-namespace-for-domain"
+	attrRefreshInterval    = "csi.cert-manager.athenz.io/refresh-interval"
+	clusterZone            = "cluster.local"
+	defaultRefreshInterval = 24 * time.Hour
 )
 
 // Options holds the Options needed for the CSI driver.
@@ -462,9 +464,26 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 
 	// Calculate the next issuance time before we write any data to file,
 	// so if the write fails, we are not left in a bad state.
-	nextIssuanceTime, err := calculateNextIssuanceTime(chain)
-	if err != nil {
-		return fmt.Errorf("failed to calculate next issuance time: %w", err)
+	var nextIssuanceTime time.Time
+
+	// Check if a custom refresh interval is specified in the volume context
+	refreshIntervalStr := meta.VolumeContext[attrRefreshInterval]
+	if refreshIntervalStr != "" {
+		// Use the custom refresh interval from volume context
+		refreshInterval, err := parseRefreshInterval(refreshIntervalStr, defaultRefreshInterval)
+		if err != nil {
+			return fmt.Errorf("failed to parse refresh interval: %w", err)
+		}
+		nextIssuanceTime = calculateNextIssuanceTimeWithRefreshInterval(refreshInterval)
+		d.log.Info("using custom refresh interval", "refreshInterval", refreshInterval.String(), "nextIssuanceTime", nextIssuanceTime.Format(time.RFC3339))
+	} else {
+		// Fall back to certificate-based calculation (2/3 of validity period)
+		var err error
+		nextIssuanceTime, err = calculateNextIssuanceTime(chain)
+		if err != nil {
+			return fmt.Errorf("failed to calculate next issuance time: %w", err)
+		}
+		d.log.Info("using certificate-based refresh interval", "nextIssuanceTime", nextIssuanceTime.Format(time.RFC3339))
 	}
 
 	data := map[string][]byte{

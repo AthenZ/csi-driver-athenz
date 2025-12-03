@@ -126,3 +126,31 @@ func getDomainFromNamespaceAnnotations(annotations map[string]string) string {
 	}
 	return ""
 }
+
+// parseRefreshInterval parses a refresh interval string in hours (e.g., "24h", "12h", "1h")
+// and returns the duration. If the string is empty, it returns the default refresh interval.
+// If the string is invalid or less than 1 hour, it returns an error.
+func parseRefreshInterval(intervalStr string, defaultInterval time.Duration) (time.Duration, error) {
+	if intervalStr == "" {
+		return defaultInterval, nil
+	}
+
+	// Parse the hours value (e.g., "24h" -> 24 hours)
+	duration, err := time.ParseDuration(intervalStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid refresh interval %q: %w", intervalStr, err)
+	}
+
+	// Ensure the refresh interval is at least 1 hour
+	if duration < time.Hour {
+		return 0, fmt.Errorf("refresh interval %q must be at least 1 hour", intervalStr)
+	}
+
+	return duration, nil
+}
+
+// calculateNextIssuanceTimeWithRefreshInterval returns the time when the certificate
+// should be renewed based on the specified refresh interval from the current time.
+func calculateNextIssuanceTimeWithRefreshInterval(refreshInterval time.Duration) time.Time {
+	return time.Now().Add(refreshInterval)
+}

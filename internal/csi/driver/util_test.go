@@ -18,6 +18,7 @@ package driver
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,95 @@ func Test_appendUri(t *testing.T) {
 				// This is a simplified test since we can't access the internal URL slice
 				// The main purpose is to ensure the function doesn't panic on invalid input
 			})
+		})
+	}
+}
+
+func Test_parseRefreshInterval(t *testing.T) {
+	defaultInterval := 24 * time.Hour
+
+	tests := []struct {
+		name            string
+		intervalStr     string
+		defaultInterval time.Duration
+		expected        time.Duration
+		expectError     bool
+	}{
+		{
+			name:            "valid 1h interval (minimum)",
+			intervalStr:     "1h",
+			defaultInterval: defaultInterval,
+			expected:        1 * time.Hour,
+			expectError:     false,
+		},
+		{
+			name:            "valid 72h interval",
+			intervalStr:     "72h",
+			defaultInterval: defaultInterval,
+			expected:        72 * time.Hour,
+			expectError:     false,
+		},
+		{
+			name:            "empty interval returns default",
+			intervalStr:     "",
+			defaultInterval: defaultInterval,
+			expected:        defaultInterval,
+			expectError:     false,
+		},
+		{
+			name:            "invalid string returns error",
+			intervalStr:     "interval",
+			defaultInterval: defaultInterval,
+			expectError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseRefreshInterval(tt.intervalStr, tt.defaultInterval)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func Test_calculateNextIssuanceTimeWithRefreshInterval(t *testing.T) {
+	tests := []struct {
+		name            string
+		refreshInterval time.Duration
+	}{
+		{
+			name:            "24h refresh interval",
+			refreshInterval: 24 * time.Hour,
+		},
+		{
+			name:            "1h refresh interval",
+			refreshInterval: 1 * time.Hour,
+		},
+		{
+			name:            "12h refresh interval",
+			refreshInterval: 12 * time.Hour,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := time.Now()
+			result := calculateNextIssuanceTimeWithRefreshInterval(tt.refreshInterval)
+			after := time.Now()
+
+			// The result should be approximately now + refreshInterval
+			expectedMin := before.Add(tt.refreshInterval)
+			expectedMax := after.Add(tt.refreshInterval)
+
+			assert.True(t, result.After(expectedMin) || result.Equal(expectedMin),
+				"result %v should be >= %v", result, expectedMin)
+			assert.True(t, result.Before(expectedMax) || result.Equal(expectedMax),
+				"result %v should be <= %v", result, expectedMax)
 		})
 	}
 }

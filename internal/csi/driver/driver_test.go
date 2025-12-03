@@ -22,6 +22,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"testing"
+	"time"
 
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	utilpki "github.com/cert-manager/cert-manager/pkg/util/pki"
@@ -29,6 +30,7 @@ import (
 	"github.com/cert-manager/csi-lib/storage"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/stretchr/testify/require"
+	"k8s.io/klog/v2/klogr"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/csi/rootca"
 )
@@ -68,6 +70,7 @@ func Test_writeKeyPair(t *testing.T) {
 
 	store := storage.NewMemoryFS()
 	d := &Driver{
+		log:          klogr.New(),
 		certFileName: "crt.pem",
 		keyFileName:  "key.pem",
 		caFileName:   "ca.pem",
@@ -296,4 +299,142 @@ func Test_generateRequestWithNamespaceDomainFalse(t *testing.T) {
 	// Should have the default spiffe ID format
 	expectedSpiffeID := "spiffe://athenz.io/ns/sandbox/sa/athenz.example"
 	require.Equal(t, expectedSpiffeID, certBundle.Annotations["csi.cert-manager.athenz.io/identity"])
+}
+
+func Test_writeKeyPairWithCustomRefreshInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+	})
+
+	capk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	caTmpl, err := utilpki.CertificateTemplateFromCertificate(&cmapi.Certificate{Spec: cmapi.CertificateSpec{CommonName: "my-ca"}})
+	require.NoError(t, err)
+
+	caPEM, ca, err := utilpki.SignCertificate(caTmpl, caTmpl, capk.Public(), capk)
+	require.NoError(t, err)
+
+	leafpk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	leafTmpl, err := utilpki.CertificateTemplateFromCertificate(
+		&cmapi.Certificate{
+			Spec: cmapi.CertificateSpec{URIs: []string{"spiffe://athenz.io/ns/sandbox/sa/default"}},
+		},
+	)
+	require.NoError(t, err)
+
+	leafPEM, _, err := utilpki.SignCertificate(leafTmpl, ca, leafpk.Public(), capk)
+	require.NoError(t, err)
+
+	ch := make(chan []byte)
+	rootCAs := rootca.NewMemory(ctx, ch)
+	ch <- caPEM
+
+	store := storage.NewMemoryFS()
+	d := &Driver{
+		log:          klogr.New(),
+		certFileName: "crt.pem",
+		keyFileName:  "key.pem",
+		caFileName:   "ca.pem",
+		rootCAs:      rootCAs,
+		store:        store,
+	}
+
+	// Test with custom refresh interval of 12 hours
+	volumeContext := map[string]string{
+		"csi.cert-manager.athenz.io/refresh-interval": "12h",
+	}
+	meta := metadata.Metadata{VolumeID: "vol-id-refresh", VolumeContext: volumeContext}
+
+	_, err = store.RegisterMetadata(meta)
+	require.NoError(t, err)
+
+	beforeWrite := time.Now()
+	err = d.writeKeypair(meta, leafpk, leafPEM, nil)
+	require.NoError(t, err)
+	afterWrite := time.Now()
+
+	files, err := store.ReadFiles("vol-id-refresh")
+	require.NoError(t, err)
+
+	_, err = x509svid.Parse(files["crt.pem"], files["key.pem"])
+	require.NoError(t, err)
+
+	// Verify the next issuance time is approximately 12 hours from now
+	updatedMeta, err := store.ReadMetadata("vol-id-refresh")
+	require.NoError(t, err)
+	require.NotNil(t, updatedMeta.NextIssuanceTime)
+
+	expectedMin := beforeWrite.Add(12 * time.Hour)
+	expectedMax := afterWrite.Add(12 * time.Hour)
+	require.True(t, updatedMeta.NextIssuanceTime.After(expectedMin) || updatedMeta.NextIssuanceTime.Equal(expectedMin),
+		"NextIssuanceTime should be >= now + 12h")
+	require.True(t, updatedMeta.NextIssuanceTime.Before(expectedMax) || updatedMeta.NextIssuanceTime.Equal(expectedMax),
+		"NextIssuanceTime should be <= now + 12h")
+}
+
+func Test_writeKeyPairWithDefaultRefreshInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+	})
+
+	capk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	caTmpl, err := utilpki.CertificateTemplateFromCertificate(&cmapi.Certificate{Spec: cmapi.CertificateSpec{CommonName: "my-ca"}})
+	require.NoError(t, err)
+
+	caPEM, ca, err := utilpki.SignCertificate(caTmpl, caTmpl, capk.Public(), capk)
+	require.NoError(t, err)
+
+	leafpk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	leafTmpl, err := utilpki.CertificateTemplateFromCertificate(
+		&cmapi.Certificate{
+			Spec: cmapi.CertificateSpec{URIs: []string{"spiffe://athenz.io/ns/sandbox/sa/default"}},
+		},
+	)
+	require.NoError(t, err)
+
+	leafPEM, _, err := utilpki.SignCertificate(leafTmpl, ca, leafpk.Public(), capk)
+	require.NoError(t, err)
+
+	ch := make(chan []byte)
+	rootCAs := rootca.NewMemory(ctx, ch)
+	ch <- caPEM
+
+	store := storage.NewMemoryFS()
+	d := &Driver{
+		log:          klogr.New(),
+		certFileName: "crt.pem",
+		keyFileName:  "key.pem",
+		caFileName:   "ca.pem",
+		rootCAs:      rootCAs,
+		store:        store,
+	}
+
+	// Test without custom refresh interval (should use certificate-based calculation)
+	meta := metadata.Metadata{VolumeID: "vol-id-default"}
+
+	_, err = store.RegisterMetadata(meta)
+	require.NoError(t, err)
+
+	err = d.writeKeypair(meta, leafpk, leafPEM, nil)
+	require.NoError(t, err)
+
+	files, err := store.ReadFiles("vol-id-default")
+	require.NoError(t, err)
+
+	_, err = x509svid.Parse(files["crt.pem"], files["key.pem"])
+	require.NoError(t, err)
+
+	// Verify the next issuance time was set (based on certificate validity)
+	updatedMeta, err := store.ReadMetadata("vol-id-default")
+	require.NoError(t, err)
+	require.NotNil(t, updatedMeta.NextIssuanceTime)
 }
