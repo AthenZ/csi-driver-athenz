@@ -21,4 +21,5 @@ import (
 	_ "github.com/AthenZ/csi-driver-athenz/test/e2e/suite/carotation"
 	_ "github.com/AthenZ/csi-driver-athenz/test/e2e/suite/fsgroup"
 	_ "github.com/AthenZ/csi-driver-athenz/test/e2e/suite/namespacedomain"
+	_ "github.com/AthenZ/csi-driver-athenz/test/e2e/suite/refreshinterval"
 )
