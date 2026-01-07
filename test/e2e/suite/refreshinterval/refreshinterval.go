@@ -19,6 +19,7 @@ package refreshinterval
 import (
 	"bytes"
 	"os/exec"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -31,6 +32,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+const csiDriverNamespace = "cert-manager"
 
 var _ = framework.CasesDescribe("RefreshInterval", func() {
 	f := framework.NewDefaultFramework("RefreshInterval")
@@ -135,6 +138,129 @@ var _ = framework.CasesDescribe("RefreshInterval", func() {
 		cmd.Stderr = GinkgoWriter
 		Expect(cmd.Run()).To(Succeed())
 		Expect(buf.Len()).To(BeNumerically(">", 0), "expected certificate file to not be empty")
+
+		By("Verifying CSI driver logs show 1h refresh interval")
+		logBuf := new(bytes.Buffer)
+		logCmd := exec.Command(f.Config().KubectlBinPath, "logs", "-n"+csiDriverNamespace, "-l", "app=csi-driver-athenz", "-c", "csi-driver-athenz", "--tail=100")
+		logCmd.Stdout = logBuf
+		logCmd.Stderr = GinkgoWriter
+		Expect(logCmd.Run()).To(Succeed())
+		Expect(strings.Contains(logBuf.String(), "refreshInterval\"=\"1h0m0s\"")).To(BeTrue(), "expected logs to show 1h refresh interval")
+
+		By("Cleaning up resources")
+		Expect(f.Client().Delete(f.Context(), &pod)).NotTo(HaveOccurred())
+		Expect(f.Client().Delete(f.Context(), &rolebinding)).NotTo(HaveOccurred())
+		Expect(f.Client().Delete(f.Context(), &role)).NotTo(HaveOccurred())
+		Expect(f.Client().Delete(f.Context(), &serviceAccount)).NotTo(HaveOccurred())
+	})
+
+	It("should issue certificate with default refresh interval (24h)", func() {
+		By("Creating service account, role, and rolebinding")
+
+		serviceAccount := corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "athenz.default-refresh-test",
+				Namespace: f.Namespace.Name,
+			},
+		}
+		Expect(f.Client().Create(f.Context(), &serviceAccount)).NotTo(HaveOccurred())
+
+		role := rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-refresh-test",
+				Namespace: f.Namespace.Name,
+			},
+			Rules: []rbacv1.PolicyRule{{
+				Verbs:     []string{"create"},
+				APIGroups: []string{"cert-manager.io"},
+				Resources: []string{"certificaterequests"},
+			}},
+		}
+		Expect(f.Client().Create(f.Context(), &role)).NotTo(HaveOccurred())
+
+		rolebinding := rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-refresh-test",
+				Namespace: f.Namespace.Name,
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     role.Name,
+			},
+			Subjects: []rbacv1.Subject{{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccount.Name,
+				Namespace: f.Namespace.Name,
+			}},
+		}
+		Expect(f.Client().Create(f.Context(), &rolebinding)).NotTo(HaveOccurred())
+
+		By("Creating pod without refresh-interval (should use default 24h)")
+		pod := corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default-refresh-interval-test",
+				Namespace: f.Namespace.Name,
+			},
+			Spec: corev1.PodSpec{
+				Volumes: []corev1.Volume{{
+					Name: "csi-driver-athenz",
+					VolumeSource: corev1.VolumeSource{
+						CSI: &corev1.CSIVolumeSource{
+							Driver:   "csi.cert-manager.athenz.io",
+							ReadOnly: pointer.Bool(true),
+							// No refresh-interval specified - should use default 24h
+							VolumeAttributes: map[string]string{},
+						},
+					},
+				}},
+				ServiceAccountName: "athenz.default-refresh-test",
+				Containers: []corev1.Container{
+					{
+						Name:    "my-container",
+						Image:   "busybox",
+						Command: []string{"sleep", "10000"},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "csi-driver-athenz",
+								MountPath: "/var/run/secrets/athenz.io",
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(f.Client().Create(f.Context(), &pod)).NotTo(HaveOccurred())
+
+		By("Waiting for pod to become ready")
+		Eventually(func() bool {
+			var p corev1.Pod
+			Expect(f.Client().Get(f.Context(), client.ObjectKey{Namespace: f.Namespace.Name, Name: pod.Name}, &p)).NotTo(HaveOccurred())
+
+			for _, c := range p.Status.Conditions {
+				if c.Type == corev1.PodReady {
+					return c.Status == corev1.ConditionTrue
+				}
+			}
+
+			return false
+		}, "60s", "1s").Should(BeTrue(), "expected pod to become ready in time")
+
+		By("Verifying certificate was issued")
+		buf := new(bytes.Buffer)
+		cmd := exec.Command(f.Config().KubectlBinPath, "exec", "-n"+f.Namespace.Name, pod.Name, "-cmy-container", "--", "cat", "/var/run/secrets/athenz.io/tls.crt")
+		cmd.Stdout = buf
+		cmd.Stderr = GinkgoWriter
+		Expect(cmd.Run()).To(Succeed())
+		Expect(buf.Len()).To(BeNumerically(">", 0), "expected certificate file to not be empty")
+
+		By("Verifying CSI driver logs show 24h refresh interval (default)")
+		logBuf := new(bytes.Buffer)
+		logCmd := exec.Command(f.Config().KubectlBinPath, "logs", "-n"+csiDriverNamespace, "-l", "app=csi-driver-athenz", "-c", "csi-driver-athenz", "--tail=100")
+		logCmd.Stdout = logBuf
+		logCmd.Stderr = GinkgoWriter
+		Expect(logCmd.Run()).To(Succeed())
+		Expect(strings.Contains(logBuf.String(), "refreshInterval\"=\"24h0m0s\"")).To(BeTrue(), "expected logs to show 24h refresh interval (default)")
 
 		By("Cleaning up resources")
 		Expect(f.Client().Delete(f.Context(), &pod)).NotTo(HaveOccurred())

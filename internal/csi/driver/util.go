@@ -57,24 +57,6 @@ func signRequest(_ metadata.Metadata, key crypto.PrivateKey, request *x509.Certi
 	}), nil
 }
 
-// calculateNextIssuanceTime returns the time when the certificate should be
-// renewed. This will be 2/3rds the duration of the leaf certificate's validity period.
-func calculateNextIssuanceTime(chain []byte) (time.Time, error) {
-	block, _ := pem.Decode(chain)
-
-	crt, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("parsing issued certificate: %w", err)
-	}
-
-	// Renew once a certificate is 2/3rds of the way through its actual lifetime.
-	actualDuration := crt.NotAfter.Sub(crt.NotBefore)
-
-	renewBeforeNotAfter := actualDuration / 3
-
-	return crt.NotAfter.Add(-renewBeforeNotAfter), nil
-}
-
 // extract domain and service from the service account name
 // e.g. athenz.prod.api -> domain: athenz.prod, service: api
 func extractDomainService(saName string) (string, string) {
@@ -127,23 +109,24 @@ func getDomainFromNamespaceAnnotations(annotations map[string]string) string {
 	return ""
 }
 
-// parseRefreshInterval parses a refresh interval string in hours (e.g., "24h", "12h", "1h")
-// and returns the duration. If the string is empty, it returns the default refresh interval.
-// If the string is invalid or less than 1 hour, it returns an error.
+// parseRefreshInterval parses a refresh interval string (e.g., "60m", "120m", "1h", "2h")
+// and returns the duration. If the string is empty, it returns the default refresh interval with nil error.
+// If invalid, it returns the default interval with an error describing the issue.
+// Minimum allowed interval is 60 minutes.
 func parseRefreshInterval(intervalStr string, defaultInterval time.Duration) (time.Duration, error) {
 	if intervalStr == "" {
-		return defaultInterval, nil
+		return defaultInterval, fmt.Errorf("no refresh interval specified, using default %s", defaultInterval.String())
 	}
 
-	// Parse the hours value (e.g., "24h" -> 24 hours)
+	// Parse the duration value (e.g., "60m" -> 60 minutes, "1h" -> 1 hour)
 	duration, err := time.ParseDuration(intervalStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid refresh interval %q: %w", intervalStr, err)
+		return defaultInterval, fmt.Errorf("failed to parse refresh interval %q: %w", intervalStr, err)
 	}
 
-	// Ensure the refresh interval is at least 1 hour
-	if duration < time.Hour {
-		return 0, fmt.Errorf("refresh interval %q must be at least 1 hour", intervalStr)
+	// Ensure the refresh interval is at least 60 minutes
+	if duration < 60*time.Minute {
+		return defaultInterval, fmt.Errorf("refresh interval %q is less than minimum 60 minutes", intervalStr)
 	}
 
 	return duration, nil

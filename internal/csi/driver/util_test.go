@@ -198,31 +198,53 @@ func Test_parseRefreshInterval(t *testing.T) {
 		expectError     bool
 	}{
 		{
-			name:            "valid 1h interval (minimum)",
+			name:            "valid 60m interval (minimum)",
+			intervalStr:     "60m",
+			defaultInterval: defaultInterval,
+			expected:        60 * time.Minute,
+			expectError:     false,
+		},
+		{
+			name:            "valid 120m interval",
+			intervalStr:     "120m",
+			defaultInterval: defaultInterval,
+			expected:        120 * time.Minute,
+			expectError:     false,
+		},
+		{
+			name:            "valid 1440m interval (24h)",
+			intervalStr:     "1440m",
+			defaultInterval: defaultInterval,
+			expected:        1440 * time.Minute,
+			expectError:     false,
+		},
+		{
+			name:            "empty interval returns default with info message",
+			intervalStr:     "",
+			defaultInterval: defaultInterval,
+			expected:        defaultInterval,
+			expectError:     true,
+		},
+		{
+			name:            "invalid string returns default with error",
+			intervalStr:     "invalid",
+			defaultInterval: defaultInterval,
+			expected:        defaultInterval,
+			expectError:     true,
+		},
+		{
+			name:            "interval less than 60m returns default with error",
+			intervalStr:     "30m",
+			defaultInterval: defaultInterval,
+			expected:        defaultInterval,
+			expectError:     true,
+		},
+		{
+			name:            "valid 1h interval (hours format also accepted)",
 			intervalStr:     "1h",
 			defaultInterval: defaultInterval,
 			expected:        1 * time.Hour,
 			expectError:     false,
-		},
-		{
-			name:            "valid 72h interval",
-			intervalStr:     "72h",
-			defaultInterval: defaultInterval,
-			expected:        72 * time.Hour,
-			expectError:     false,
-		},
-		{
-			name:            "empty interval returns default",
-			intervalStr:     "",
-			defaultInterval: defaultInterval,
-			expected:        defaultInterval,
-			expectError:     false,
-		},
-		{
-			name:            "invalid string returns error",
-			intervalStr:     "interval",
-			defaultInterval: defaultInterval,
-			expectError:     true,
 		},
 	}
 
@@ -233,8 +255,8 @@ func Test_parseRefreshInterval(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
 			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
