@@ -46,6 +46,40 @@ entries:
         - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager
         - url: https://artifacthub.io/packages/helm/cert-manager/trust-manager
     apiVersion: v2
+    appVersion: v0.0.12
+    created: "2026-01-07T05:11:43.390826723Z"
+    description: cert-manager csi-driver-athenz is a CSI plugin for Kubernetes which
+      transparently delivers Athenz X.509 certificate to pods via cert-manager
+    digest: 5d2bb4b912c47485b9c7f8c13b59312119c2ac605cb4565339399479b10d393a
+    home: https://www.athenz.io/projects.html#csi-driver-athenz
+    icon: https://raw.githubusercontent.com/AthenZ/website/f3e94b8a8ecd2ff0b7948a891e73811dddfde453/favicon.ico
+    keywords:
+    - athenz
+    - cert-manager
+    - csi
+    - spiffe
+    - tls
+    maintainers:
+    - email: athenz-team@googlegroups.com
+      name: athenz-team
+      url: https://athenz.io
+    name: csi-driver-athenz
+    sources:
+    - https://github.com/AthenZ/csi-driver-athenz
+    type: application
+    urls:
+    - https://github.com/AthenZ/csi-driver-athenz/releases/download/csi-driver-athenz-v0.0.12/csi-driver-athenz-v0.0.12.tgz
+    version: v0.0.12
+  - annotations:
+      artifacthub.io/alternativeName: csi-driver-athenz
+      artifacthub.io/category: security
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/prerelease: "false"
+      artifacthub.io/recommendations: |
+        - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager-csi-driver
+        - url: https://artifacthub.io/packages/helm/cert-manager/cert-manager
+        - url: https://artifacthub.io/packages/helm/cert-manager/trust-manager
+    apiVersion: v2
     appVersion: v0.0.11
     created: "2025-12-23T16:43:49.052133285Z"
     description: cert-manager csi-driver-athenz is a CSI plugin for Kubernetes which
@@ -274,4 +308,4 @@ entries:
     urls:
     - https://github.com/AthenZ/csi-driver-athenz/releases/download/csi-driver-athenz-v0.0.1/csi-driver-athenz-v0.0.1.tgz
     version: v0.0.1
-generated: "2025-12-23T16:43:49.052165435Z"
+generated: "2026-01-07T05:11:43.390866397Z"
