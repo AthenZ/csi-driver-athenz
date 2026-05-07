@@ -269,7 +269,7 @@ var _ = framework.CasesDescribe("RefreshInterval", func() {
 		Expect(f.Client().Delete(f.Context(), &serviceAccount)).NotTo(HaveOccurred())
 	})
 
-	It("should fail to mount volume with invalid refresh interval", func() {
+	It("should issue certificate with default refresh interval (24h) when invalid refresh interval is provided", func() {
 		By("Creating service account, role, and rolebinding")
 
 		serviceAccount := corev1.ServiceAccount{
@@ -348,8 +348,8 @@ var _ = framework.CasesDescribe("RefreshInterval", func() {
 		}
 		Expect(f.Client().Create(f.Context(), &pod)).NotTo(HaveOccurred())
 
-		By("Verifying pod fails to become ready due to invalid refresh interval")
-		Consistently(func() bool {
+		By("Verifying pod becomes ready (driver falls back to default 24h refresh interval)")
+		Eventually(func() bool {
 			var p corev1.Pod
 			Expect(f.Client().Get(f.Context(), client.ObjectKey{Namespace: f.Namespace.Name, Name: pod.Name}, &p)).NotTo(HaveOccurred())
 
@@ -360,7 +360,12 @@ var _ = framework.CasesDescribe("RefreshInterval", func() {
 			}
 
 			return false
-		}, "30s", "1s").Should(BeFalse(), "expected pod to NOT become ready due to invalid refresh interval")
+		}, "30s", "1s").Should(BeTrue(), "expected pod to become ready using default refresh interval")
+
+		By("Verifying certificate files are created")
+		cmd := exec.Command(f.Config().KubectlBinPath, "exec", "-n"+f.Namespace.Name, pod.Name, "-cmy-container", "--", "ls", "/var/run/secrets/athenz.io")
+		out, err := cmd.CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), "expected cert files to exist: %s", out)
 
 		By("Cleaning up resources")
 		Expect(f.Client().Delete(f.Context(), &pod)).NotTo(HaveOccurred())

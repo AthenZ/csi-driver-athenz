@@ -199,7 +199,7 @@ type Driver struct {
 }
 
 // New constructs a new Driver instance.
-func New(log logr.Logger, opts Options) (*Driver, error) {
+func New(ctx context.Context, log logr.Logger, opts Options) (*Driver, error) {
 	d := &Driver{
 		log:                        log.WithName("csi"),
 		trustDomain:                opts.TrustDomain,
@@ -252,7 +252,7 @@ func New(log logr.Logger, opts Options) (*Driver, error) {
 	}
 
 	mngrLog := d.log.WithName("manager")
-	d.driver, err = driver.New(opts.Endpoint, d.log.WithName("driver"), driver.Options{
+	d.driver, err = driver.New(ctx, opts.Endpoint, d.log.WithName("driver"), driver.Options{
 		DriverName:    opts.DriverName,
 		DriverVersion: "v0.1.0",
 		NodeID:        opts.NodeID,
