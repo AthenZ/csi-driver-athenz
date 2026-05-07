@@ -464,11 +464,16 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 
 	// Calculate the next issuance time before we write any data to file,
 	// so if the write fails, we are not left in a bad state.
-	// Parse refresh interval from volume context, defaults to 24h if not specified or invalid
 	refreshIntervalStr := meta.VolumeContext[attrRefreshInterval]
-	refreshInterval, err := parseRefreshInterval(refreshIntervalStr, defaultRefreshInterval)
-	if err != nil {
-		d.log.Error(err, "invalid refresh interval, using default", "default", defaultRefreshInterval.String())
+	var refreshInterval time.Duration
+	if refreshIntervalStr == "" {
+		refreshInterval = defaultRefreshInterval
+	} else {
+		var err error
+		refreshInterval, err = parseRefreshInterval(refreshIntervalStr, defaultRefreshInterval)
+		if err != nil {
+			return fmt.Errorf("invalid refresh interval: %w", err)
+		}
 	}
 	nextIssuanceTime := calculateNextIssuanceTimeWithRefreshInterval(refreshInterval)
 	d.log.Info("using refresh interval", "refreshInterval", refreshInterval.String(), "nextIssuanceTime", nextIssuanceTime.Format(time.RFC3339))

@@ -157,7 +157,28 @@ func Test_Reconcile(t *testing.T) {
 				err := fakeclient.Get(context.TODO(), client.ObjectKeyFromObject(expObj), actual)
 				if err != nil {
 					t.Errorf("unexpected error getting expected object: %s", err)
-				} else if !apiequality.Semantic.DeepEqual(expObj, actual) {
+					continue
+				}
+
+				// Normalise differences introduced by the fake client's JSON
+				// roundtrip on Status updates so semantic equality is meaningful:
+				//   - TypeMeta is stripped by Get (matches real apiserver), so
+				//     copy it from expected onto actual.
+				//   - metav1.Time fields come back in time.Local; semantic
+				//     equality only has a registered handler for metav1.Time
+				//     (value), not *metav1.Time (pointer), so renormalise to
+				//     UTC for a zone-insensitive comparison.
+				actual.GetObjectKind().SetGroupVersionKind(expObj.GetObjectKind().GroupVersionKind())
+				if cr, ok := actual.(*cmapi.CertificateRequest); ok {
+					for i := range cr.Status.Conditions {
+						if cr.Status.Conditions[i].LastTransitionTime != nil {
+							utc := cr.Status.Conditions[i].LastTransitionTime.UTC()
+							cr.Status.Conditions[i].LastTransitionTime = &metav1.Time{Time: utc}
+						}
+					}
+				}
+
+				if !apiequality.Semantic.DeepEqual(expObj, actual) {
 					t.Errorf("unexpected expected object, exp=%#+v got=%#+v", expObj, actual)
 				}
 			}
