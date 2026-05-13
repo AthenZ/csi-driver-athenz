@@ -94,6 +94,27 @@ type OptionsVolume struct {
 	// encoded X.509 root CA certificates that will be written to managed volumes
 	// at the CSICAFileName path. No CAs will be written if this is empty.
 	SourceCABundleFile string
+
+	// KeystoreEnabled is the master switch for PKCS12 / JKS keystore
+	// provisioning. Disabled by default; opt in to write PKCS12 / JKS files
+	// alongside the PEM identity files.
+	KeystoreEnabled bool
+
+	// KeystoreFileName is the file name used for the PKCS12 keystore written
+	// into the Pod's volume. Has no effect unless KeystoreEnabled is true.
+	KeystoreFileName string
+
+	// JKSFileName is the file name used for the JKS keystore written into the
+	// Pod's volume. Has no effect unless KeystoreEnabled is true.
+	JKSFileName string
+
+	// KeystorePassword is the password used to encrypt the PKCS12 / JKS
+	// keystores.
+	KeystorePassword string
+
+	// KeystoreAlias is the alias used for the private key entry inside the
+	// JKS keystore.
+	KeystoreAlias string
 }
 
 // OptionsAthenz is options specific to Athenz.
@@ -173,6 +194,29 @@ func (o *Options) addVolumeFlags(fs *pflag.FlagSet) {
 		"File path that is read by the driver which will be written to all managed "+
 			"volumes to the file location inside volumes defined in --file-name-ca. If "+
 			"undefined, no CA file is written to volumes.")
+
+	fs.BoolVar(&o.Volume.KeystoreEnabled, "enable-keystore", false,
+		"Enable provisioning of PKCS12 and JKS keystores alongside the PEM "+
+			"identity files. When false (default), no keystores are written and "+
+			"the --file-name-keystore / --file-name-jks / --keystore-password / "+
+			"--keystore-alias flags have no effect.")
+	fs.StringVar(&o.Volume.KeystoreFileName, "file-name-keystore", "service.pkcs12",
+		"The file name of the PKCS12 keystore written into the pod's volume. "+
+			"Requires --enable-keystore. The keystore contains the private key "+
+			"and leaf certificate using the legacy PKCS12 encoding to mirror the "+
+			"on-disk format produced by `openssl pkcs12 -export -noiter -nomaciter`. "+
+			"Set to an empty string to skip PKCS12 keystore generation while still "+
+			"writing the JKS keystore.")
+	fs.StringVar(&o.Volume.JKSFileName, "file-name-jks", "service.jks",
+		"The file name of the JKS keystore written into the pod's volume. "+
+			"Requires --enable-keystore. Set to an empty string to skip JKS "+
+			"keystore generation while still writing the PKCS12 keystore.")
+	fs.StringVar(&o.Volume.KeystorePassword, "keystore-password", "changeit",
+		"Password used to encrypt the PKCS12 and JKS keystores. "+
+			"Requires --enable-keystore.")
+	fs.StringVar(&o.Volume.KeystoreAlias, "keystore-alias", "service",
+		"Alias used for the private key entry inside the JKS keystore. "+
+			"Requires --enable-keystore.")
 }
 
 func (o *Options) addAthenzFlags(fs *pflag.FlagSet) {
