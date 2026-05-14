@@ -17,6 +17,9 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -26,6 +29,10 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
+
+// DefaultKeystorePassword is the well-known Java keystore default used when
+// --keystore-password-file is not configured.
+const DefaultKeystorePassword = "changeit"
 
 // Options are the CSI Driver flag options.
 type Options struct {
@@ -108,8 +115,15 @@ type OptionsVolume struct {
 	// Pod's volume. Has no effect unless KeystoreEnabled is true.
 	JKSFileName string
 
+	// KeystorePasswordFile is a file path whose contents are used as the
+	// password to encrypt the PKCS12 / JKS keystores. When empty, the
+	// well-known Java default `changeit` is used. The password is intentionally
+	// not exposed as a plain CLI flag to avoid leaking it via `ps`.
+	KeystorePasswordFile string
+
 	// KeystorePassword is the password used to encrypt the PKCS12 / JKS
-	// keystores.
+	// keystores. Populated from KeystorePasswordFile (or the built-in default)
+	// during option completion; not set directly by a flag.
 	KeystorePassword string
 
 	// KeystoreAlias is the alias used for the private key entry inside the
@@ -211,8 +225,11 @@ func (o *Options) addVolumeFlags(fs *pflag.FlagSet) {
 		"The file name of the JKS keystore written into the pod's volume. "+
 			"Requires --enable-keystore. Set to an empty string to skip JKS "+
 			"keystore generation while still writing the PKCS12 keystore.")
-	fs.StringVar(&o.Volume.KeystorePassword, "keystore-password", "changeit",
-		"Password used to encrypt the PKCS12 and JKS keystores. "+
+	fs.StringVar(&o.Volume.KeystorePasswordFile, "keystore-password-file", "",
+		"File path whose contents are used as the password to encrypt the "+
+			"PKCS12 and JKS keystores. When unset, the well-known Java default "+
+			"`changeit` is used. The password is read from a file rather than "+
+			"taken as a CLI flag to avoid exposing it via `ps`. "+
 			"Requires --enable-keystore.")
 	fs.StringVar(&o.Volume.KeystoreAlias, "keystore-alias", "service",
 		"Alias used for the private key entry inside the JKS keystore. "+
@@ -228,4 +245,40 @@ func (o *Options) addAthenzFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.Athenz.CertOrgName, "cert-org-name", "Athenz", "Organization name in the service identity certificate.")
 	fs.StringVar(&o.Athenz.CloudProvider, "cloud-provider", "", "Cloud provider where the driver is running.")
 	fs.StringVar(&o.Athenz.CloudRegion, "cloud-region", "", "Cloud region where the driver is running.")
+}
+
+// Complete extends the embedded Flags.Complete with options-specific
+// finalisation, in particular reading the keystore password from disk so it
+// is not exposed via process arguments.
+func (o *Options) Complete() error {
+	if err := o.Flags.Complete(); err != nil {
+		return err
+	}
+	return o.loadKeystorePassword()
+}
+
+// loadKeystorePassword populates Volume.KeystorePassword from
+// KeystorePasswordFile when set, falling back to DefaultKeystorePassword
+// otherwise. Trailing whitespace (typically a trailing newline from
+// `echo "..." > file`) is stripped.
+func (o *Options) loadKeystorePassword() error {
+	if !o.Volume.KeystoreEnabled {
+		return nil
+	}
+	if o.Volume.KeystorePasswordFile == "" {
+		o.Volume.KeystorePassword = DefaultKeystorePassword
+		return nil
+	}
+	data, err := os.ReadFile(o.Volume.KeystorePasswordFile)
+	if err != nil {
+		return fmt.Errorf("reading --keystore-password-file %q: %w",
+			o.Volume.KeystorePasswordFile, err)
+	}
+	password := strings.TrimRight(string(data), "\r\n")
+	if password == "" {
+		return fmt.Errorf("--keystore-password-file %q is empty",
+			o.Volume.KeystorePasswordFile)
+	}
+	o.Volume.KeystorePassword = password
+	return nil
 }
