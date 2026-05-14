@@ -607,7 +607,11 @@ func encodePKCS12(key crypto.PrivateKey, leaf *x509.Certificate, password string
 func encodeJKS(privateKeyDER []byte, leaf *x509.Certificate, alias, password string) ([]byte, error) {
 	ks := keystore.New()
 	if err := ks.SetPrivateKeyEntry(alias, keystore.PrivateKeyEntry{
-		CreationTime: time.Now(),
+		// Use the leaf's NotBefore (not time.Now()) so the encoded JKS bytes
+		// are a pure function of the certificate. This keeps the on-disk file
+		// stable for a given cert and avoids needlessly tripping file
+		// watchers when writeKeypair runs without the cert actually changing.
+		CreationTime: leaf.NotBefore,
 		PrivateKey:   privateKeyDER,
 		CertificateChain: []keystore.Certificate{
 			{Type: "X509", Content: leaf.Raw},

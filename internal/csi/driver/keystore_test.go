@@ -155,6 +155,12 @@ func Test_writeKeypair_JKS(t *testing.T) {
 	expectedLeaf := parseFirstCert(t, leafPEM)
 	require.True(t, bytes.Equal(entry.CertificateChain[0].Content, expectedLeaf.Raw),
 		"leaf certificate in JKS must match the issued leaf")
+
+	// CreationTime is derived from leaf.NotBefore so that re-encoding the
+	// same certificate yields the same JKS metadata, rather than drifting
+	// with wall-clock time on every refresh.
+	require.True(t, entry.CreationTime.Equal(expectedLeaf.NotBefore),
+		"JKS entry CreationTime must equal leaf.NotBefore for determinism")
 }
 
 // Test_writeKeypair_KeystoresDisabled ensures no keystore files are written
