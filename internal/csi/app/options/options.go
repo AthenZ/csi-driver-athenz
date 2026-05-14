@@ -31,8 +31,14 @@ import (
 )
 
 // DefaultKeystorePassword is the well-known Java keystore default used when
-// --keystore-password-file is not configured.
+// neither KeystorePasswordEnvVar nor --keystore-password-file is configured.
 const DefaultKeystorePassword = "changeit"
+
+// KeystorePasswordEnvVar is the environment variable read at startup for the
+// keystore password. When set, it takes precedence over
+// --keystore-password-file. Intentionally not exposed as a CLI flag to avoid
+// leaking the password via `ps`.
+const KeystorePasswordEnvVar = "KEYSTORE_PASSWORD"
 
 // Options are the CSI Driver flag options.
 type Options struct {
@@ -116,14 +122,18 @@ type OptionsVolume struct {
 	JKSFileName string
 
 	// KeystorePasswordFile is a file path whose contents are used as the
-	// password to encrypt the PKCS12 / JKS keystores. When empty, the
-	// well-known Java default `changeit` is used. The password is intentionally
-	// not exposed as a plain CLI flag to avoid leaking it via `ps`.
+	// password to encrypt the PKCS12 / JKS keystores. Ignored if the
+	// KeystorePasswordEnvVar environment variable is set; otherwise, when
+	// empty, the well-known Java default `changeit` is used. The password is
+	// intentionally not exposed as a plain CLI flag to avoid leaking it
+	// via `ps`.
 	KeystorePasswordFile string
 
 	// KeystorePassword is the password used to encrypt the PKCS12 / JKS
-	// keystores. Populated from KeystorePasswordFile (or the built-in default)
-	// during option completion; not set directly by a flag.
+	// keystores. Resolved during option completion from (in order of
+	// precedence) the KeystorePasswordEnvVar environment variable, the
+	// KeystorePasswordFile contents, or the built-in default. Not set
+	// directly by a flag.
 	KeystorePassword string
 
 	// KeystoreAlias is the alias used for the private key entry inside the
@@ -227,9 +237,10 @@ func (o *Options) addVolumeFlags(fs *pflag.FlagSet) {
 			"keystore generation while still writing the PKCS12 keystore.")
 	fs.StringVar(&o.Volume.KeystorePasswordFile, "keystore-password-file", "",
 		"File path whose contents are used as the password to encrypt the "+
-			"PKCS12 and JKS keystores. When unset, the well-known Java default "+
-			"`changeit` is used. The password is read from a file rather than "+
-			"taken as a CLI flag to avoid exposing it via `ps`. "+
+			"PKCS12 and JKS keystores. Ignored when the KEYSTORE_PASSWORD "+
+			"environment variable is set (env wins). When both are unset, the "+
+			"well-known Java default `changeit` is used. The password is "+
+			"never accepted as a plain CLI flag, to avoid exposing it via `ps`. "+
 			"Requires --enable-keystore.")
 	fs.StringVar(&o.Volume.KeystoreAlias, "keystore-alias", "service",
 		"Alias used for the private key entry inside the JKS keystore. "+
@@ -257,18 +268,31 @@ func (o *Options) Complete() error {
 	return o.loadKeystorePassword()
 }
 
-// loadKeystorePassword populates Volume.KeystorePassword from
-// KeystorePasswordFile when set, falling back to DefaultKeystorePassword
-// otherwise. Trailing whitespace (typically a trailing newline from
-// `echo "..." > file`) is stripped.
+// loadKeystorePassword resolves Volume.KeystorePassword using the following
+// precedence (highest to lowest):
+//
+//  1. KeystorePasswordEnvVar environment variable, if non-empty
+//  2. KeystorePasswordFile contents (trailing CR/LF stripped), if the flag is set
+//  3. DefaultKeystorePassword built-in fallback (`changeit`)
+//
+// An explicitly-set but empty file is treated as a startup error so a
+// misconfigured Secret mount fails fast rather than silently using a blank
+// password.
 func (o *Options) loadKeystorePassword() error {
 	if !o.Volume.KeystoreEnabled {
 		return nil
 	}
+
+	if envPassword, ok := os.LookupEnv(KeystorePasswordEnvVar); ok && envPassword != "" {
+		o.Volume.KeystorePassword = envPassword
+		return nil
+	}
+
 	if o.Volume.KeystorePasswordFile == "" {
 		o.Volume.KeystorePassword = DefaultKeystorePassword
 		return nil
 	}
+
 	data, err := os.ReadFile(o.Volume.KeystorePasswordFile)
 	if err != nil {
 		return fmt.Errorf("reading --keystore-password-file %q: %w",
