@@ -246,7 +246,8 @@ func parseFirstCert(t *testing.T, pemBytes []byte) *x509.Certificate {
 }
 
 // Test_pickLeaf_ChainOrder ensures the leaf is selected by IsCA, not by chain
-// order, so the keystore is robust to chains emitted in any order.
+// order, so the keystore is robust to chains emitted in any order. Picking a
+// genuine non-CA cert must never set the fallback flag.
 func Test_pickLeaf_ChainOrder(t *testing.T) {
 	leaf := &x509.Certificate{IsCA: false}
 	intermediate := &x509.Certificate{IsCA: true}
@@ -260,21 +261,36 @@ func Test_pickLeaf_ChainOrder(t *testing.T) {
 	}
 	for name, chain := range cases {
 		t.Run(name, func(t *testing.T) {
-			require.Same(t, leaf, pickLeaf(chain))
+			got, fellBack := pickLeaf(chain)
+			require.Same(t, leaf, got)
+			require.False(t, fellBack, "should not report fallback when a non-CA cert exists")
 		})
 	}
 }
 
 // Test_pickLeaf_EdgeCases covers the empty input (returns nil) and the
-// all-CA fallback path (returns the first cert as a safety net).
+// all-CA fallback path (returns the first cert as a safety net and flags
+// fellBack=true so the caller can log the anomaly).
 func Test_pickLeaf_EdgeCases(t *testing.T) {
-	require.Nil(t, pickLeaf(nil))
-	require.Nil(t, pickLeaf([]*x509.Certificate{}))
-
-	first := &x509.Certificate{IsCA: true}
-	second := &x509.Certificate{IsCA: true}
-	require.Same(t, first, pickLeaf([]*x509.Certificate{first, second}),
-		"with no non-CA cert, pickLeaf must fall back to the first cert")
+	t.Run("nil-input", func(t *testing.T) {
+		got, fellBack := pickLeaf(nil)
+		require.Nil(t, got)
+		require.False(t, fellBack)
+	})
+	t.Run("empty-input", func(t *testing.T) {
+		got, fellBack := pickLeaf([]*x509.Certificate{})
+		require.Nil(t, got)
+		require.False(t, fellBack)
+	})
+	t.Run("all-ca-fallback", func(t *testing.T) {
+		first := &x509.Certificate{IsCA: true}
+		second := &x509.Certificate{IsCA: true}
+		got, fellBack := pickLeaf([]*x509.Certificate{first, second})
+		require.Same(t, first, got,
+			"with no non-CA cert, pickLeaf must fall back to the first cert")
+		require.True(t, fellBack,
+			"all-CA chain must flag fellBack so the caller can warn")
+	})
 }
 
 // Test_writeKeypair_PicksLeafByIsCA verifies the end-to-end behaviour: when

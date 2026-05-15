@@ -558,9 +558,16 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 		if err != nil {
 			return fmt.Errorf("parsing certificate chain for keystore: %w", err)
 		}
-		leaf := pickLeaf(chainCerts)
+		leaf, fellBack := pickLeaf(chainCerts)
 		if leaf == nil {
 			return fmt.Errorf("no certificates found in chain for keystore")
+		}
+		if fellBack {
+			d.log.Info("no non-CA certificate found in chain; falling back to the first cert for keystore",
+				"chainLength", len(chainCerts),
+				"leafSubject", leaf.Subject.String(),
+				"leafIsCA", leaf.IsCA,
+			)
 		}
 
 		if len(d.keystoreFileName) > 0 {
@@ -630,18 +637,19 @@ func encodeJKS(privateKeyDER []byte, leaf *x509.Certificate, alias, password str
 // pickLeaf returns the first non-CA certificate from certs (i.e. the end-entity
 // leaf), regardless of position in the chain. As a safety net for chains where
 // no certificate has IsCA=false (which would be unusual for an issued service
-// identity), it falls back to the first certificate. Returns nil if certs is
+// identity), it falls back to the first certificate and reports fellBack=true
+// so the caller can surface the anomaly. Returns (nil, false) if certs is
 // empty.
-func pickLeaf(certs []*x509.Certificate) *x509.Certificate {
+func pickLeaf(certs []*x509.Certificate) (leaf *x509.Certificate, fellBack bool) {
 	for _, c := range certs {
 		if !c.IsCA {
-			return c
+			return c, false
 		}
 	}
 	if len(certs) > 0 {
-		return certs[0]
+		return certs[0], true
 	}
-	return nil
+	return nil, false
 }
 
 // parseCertChain decodes all CERTIFICATE PEM blocks in data into x509
