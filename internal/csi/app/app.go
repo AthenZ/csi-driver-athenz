@@ -87,6 +87,11 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				CertificateFileName: opts.Volume.CertificateFileName,
 				KeyFileName:         opts.Volume.KeyFileName,
 				CAFileName:          opts.Volume.CAFileName,
+				KeystoreEnabled:     opts.Volume.KeystoreEnabled,
+				KeystoreFileName:    opts.Volume.KeystoreFileName,
+				JKSFileName:         opts.Volume.JKSFileName,
+				KeystorePassword:    opts.Volume.KeystorePassword,
+				KeystoreAlias:       opts.Volume.KeystoreAlias,
 
 				RootCAs: rootCA,
 

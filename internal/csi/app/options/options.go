@@ -17,6 +17,9 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -26,6 +29,16 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
+
+// DefaultKeystorePassword is the well-known Java keystore default used when
+// neither KeystorePasswordEnvVar nor --keystore-password-file is configured.
+const DefaultKeystorePassword = "changeit"
+
+// KeystorePasswordEnvVar is the environment variable read at startup for the
+// keystore password. When set, it takes precedence over
+// --keystore-password-file. Intentionally not exposed as a CLI flag to avoid
+// leaking the password via `ps`.
+const KeystorePasswordEnvVar = "KEYSTORE_PASSWORD"
 
 // Options are the CSI Driver flag options.
 type Options struct {
@@ -94,6 +107,38 @@ type OptionsVolume struct {
 	// encoded X.509 root CA certificates that will be written to managed volumes
 	// at the CSICAFileName path. No CAs will be written if this is empty.
 	SourceCABundleFile string
+
+	// KeystoreEnabled is the master switch for PKCS12 / JKS keystore
+	// provisioning. Disabled by default; opt in to write PKCS12 / JKS files
+	// alongside the PEM identity files.
+	KeystoreEnabled bool
+
+	// KeystoreFileName is the file name used for the PKCS12 keystore written
+	// into the Pod's volume. Has no effect unless KeystoreEnabled is true.
+	KeystoreFileName string
+
+	// JKSFileName is the file name used for the JKS keystore written into the
+	// Pod's volume. Has no effect unless KeystoreEnabled is true.
+	JKSFileName string
+
+	// KeystorePasswordFile is a file path whose contents are used as the
+	// password to encrypt the PKCS12 / JKS keystores. Ignored if the
+	// KeystorePasswordEnvVar environment variable is set; otherwise, when
+	// empty, the well-known Java default `changeit` is used. The password is
+	// intentionally not exposed as a plain CLI flag to avoid leaking it
+	// via `ps`.
+	KeystorePasswordFile string
+
+	// KeystorePassword is the password used to encrypt the PKCS12 / JKS
+	// keystores. Resolved during option completion from (in order of
+	// precedence) the KeystorePasswordEnvVar environment variable, the
+	// KeystorePasswordFile contents, or the built-in default. Not set
+	// directly by a flag.
+	KeystorePassword string
+
+	// KeystoreAlias is the alias used for the private key entry inside the
+	// JKS keystore.
+	KeystoreAlias string
 }
 
 // OptionsAthenz is options specific to Athenz.
@@ -173,6 +218,33 @@ func (o *Options) addVolumeFlags(fs *pflag.FlagSet) {
 		"File path that is read by the driver which will be written to all managed "+
 			"volumes to the file location inside volumes defined in --file-name-ca. If "+
 			"undefined, no CA file is written to volumes.")
+
+	fs.BoolVar(&o.Volume.KeystoreEnabled, "enable-keystore", false,
+		"Enable provisioning of PKCS12 and JKS keystores alongside the PEM "+
+			"identity files. When false (default), no keystores are written and "+
+			"the --file-name-keystore / --file-name-jks / --keystore-password / "+
+			"--keystore-alias flags have no effect.")
+	fs.StringVar(&o.Volume.KeystoreFileName, "file-name-keystore", "service.pkcs12",
+		"The file name of the PKCS12 keystore written into the pod's volume. "+
+			"Requires --enable-keystore. The keystore contains the private key "+
+			"and leaf certificate using the legacy PKCS12 encoding to mirror the "+
+			"on-disk format produced by `openssl pkcs12 -export -noiter -nomaciter`. "+
+			"Set to an empty string to skip PKCS12 keystore generation while still "+
+			"writing the JKS keystore.")
+	fs.StringVar(&o.Volume.JKSFileName, "file-name-jks", "service.jks",
+		"The file name of the JKS keystore written into the pod's volume. "+
+			"Requires --enable-keystore. Set to an empty string to skip JKS "+
+			"keystore generation while still writing the PKCS12 keystore.")
+	fs.StringVar(&o.Volume.KeystorePasswordFile, "keystore-password-file", "",
+		"File path whose contents are used as the password to encrypt the "+
+			"PKCS12 and JKS keystores. Ignored when the KEYSTORE_PASSWORD "+
+			"environment variable is set (env wins). When both are unset, the "+
+			"well-known Java default `changeit` is used. The password is "+
+			"never accepted as a plain CLI flag, to avoid exposing it via `ps`. "+
+			"Requires --enable-keystore.")
+	fs.StringVar(&o.Volume.KeystoreAlias, "keystore-alias", "service",
+		"Alias used for the private key entry inside the JKS keystore. "+
+			"Requires --enable-keystore.")
 }
 
 func (o *Options) addAthenzFlags(fs *pflag.FlagSet) {
@@ -184,4 +256,53 @@ func (o *Options) addAthenzFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.Athenz.CertOrgName, "cert-org-name", "Athenz", "Organization name in the service identity certificate.")
 	fs.StringVar(&o.Athenz.CloudProvider, "cloud-provider", "", "Cloud provider where the driver is running.")
 	fs.StringVar(&o.Athenz.CloudRegion, "cloud-region", "", "Cloud region where the driver is running.")
+}
+
+// Complete extends the embedded Flags.Complete with options-specific
+// finalisation, in particular reading the keystore password from disk so it
+// is not exposed via process arguments.
+func (o *Options) Complete() error {
+	if err := o.Flags.Complete(); err != nil {
+		return err
+	}
+	return o.loadKeystorePassword()
+}
+
+// loadKeystorePassword resolves Volume.KeystorePassword using the following
+// precedence (highest to lowest):
+//
+//  1. KeystorePasswordEnvVar environment variable, if non-empty
+//  2. KeystorePasswordFile contents (trailing CR/LF stripped), if the flag is set
+//  3. DefaultKeystorePassword built-in fallback (`changeit`)
+//
+// An explicitly-set but empty file is treated as a startup error so a
+// misconfigured Secret mount fails fast rather than silently using a blank
+// password.
+func (o *Options) loadKeystorePassword() error {
+	if !o.Volume.KeystoreEnabled {
+		return nil
+	}
+
+	if envPassword, ok := os.LookupEnv(KeystorePasswordEnvVar); ok && envPassword != "" {
+		o.Volume.KeystorePassword = envPassword
+		return nil
+	}
+
+	if o.Volume.KeystorePasswordFile == "" {
+		o.Volume.KeystorePassword = DefaultKeystorePassword
+		return nil
+	}
+
+	data, err := os.ReadFile(o.Volume.KeystorePasswordFile)
+	if err != nil {
+		return fmt.Errorf("reading --keystore-password-file %q: %w",
+			o.Volume.KeystorePasswordFile, err)
+	}
+	password := strings.TrimRight(string(data), "\r\n")
+	if password == "" {
+		return fmt.Errorf("--keystore-password-file %q is empty",
+			o.Volume.KeystorePasswordFile)
+	}
+	o.Volume.KeystorePassword = password
+	return nil
 }

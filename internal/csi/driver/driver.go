@@ -17,6 +17,7 @@ limitations under the License.
 package driver
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -37,12 +38,23 @@ import (
 	"github.com/cert-manager/csi-lib/metadata"
 	"github.com/cert-manager/csi-lib/storage"
 	"github.com/go-logr/logr"
+	keystore "github.com/pavlo-v-chernykh/keystore-go/v4"
 	"gopkg.in/square/go-jose.v2/jwt"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/csi/rootca"
 )
+
+// DefaultKeystorePassword is the password used to encrypt the PKCS12 / JKS
+// keystores when none is configured. Matches the conventional Java keystore
+// default.
+const DefaultKeystorePassword = "changeit"
+
+// DefaultKeystoreAlias is the alias used for the private key entry inside the
+// generated JKS keystore.
+const DefaultKeystoreAlias = "service"
 
 const (
 	cloudMetaEndpoint      = "http://169.254.169.254:80"
@@ -97,6 +109,32 @@ type Options struct {
 	// CAFileName is the name of the file that the root CA certificates will be
 	// written to inside the Pod's volume. Ignored if RootCAs is nil.
 	CAFileName string
+
+	// KeystoreEnabled is the master switch for PKCS12 / JKS keystore
+	// provisioning. When false (the default), no keystores are written and
+	// the keystore-related options below are ignored.
+	KeystoreEnabled bool
+
+	// KeystoreFileName is the name of the PKCS12 keystore file written into the
+	// Pod's volume. The keystore contains the private key and leaf certificate,
+	// using the legacy PKCS12 encoding. Has no effect unless KeystoreEnabled
+	// is true. If empty when KeystoreEnabled is true, no PKCS12 keystore is
+	// written.
+	KeystoreFileName string
+
+	// JKSFileName is the name of the JKS keystore file written into the Pod's
+	// volume. The keystore contains the private key and leaf certificate. Has
+	// no effect unless KeystoreEnabled is true. If empty when KeystoreEnabled
+	// is true, no JKS keystore is written.
+	JKSFileName string
+
+	// KeystorePassword is the password used to encrypt both the PKCS12 and JKS
+	// keystores. Defaults to DefaultKeystorePassword if empty.
+	KeystorePassword string
+
+	// KeystoreAlias is the alias used for the private key entry inside the
+	// JKS keystore. Defaults to DefaultKeystoreAlias if empty.
+	KeystoreAlias string
 
 	// RestConfig is used for interacting with the Kubernetes API server.
 	RestConfig *rest.Config
@@ -157,6 +195,28 @@ type Driver struct {
 	// to volumes.
 	certFileName, keyFileName, caFileName string
 
+	// keystoreEnabled gates PKCS12 / JKS provisioning entirely. When false,
+	// keystoreFileName and jksFileName are ignored.
+	keystoreEnabled bool
+
+	// keystoreFileName is the file name of the PKCS12 keystore written to
+	// volumes. Ignored when keystoreEnabled is false; if empty when enabled,
+	// no PKCS12 keystore is written.
+	keystoreFileName string
+
+	// jksFileName is the file name of the JKS keystore written to volumes.
+	// Ignored when keystoreEnabled is false; if empty when enabled, no JKS
+	// keystore is written.
+	jksFileName string
+
+	// keystorePassword is the password used to encrypt the PKCS12 / JKS
+	// keystores.
+	keystorePassword string
+
+	// keystoreAlias is the alias used for the private key entry inside the
+	// JKS keystore.
+	keystoreAlias string
+
 	// rootCAs provides the root CA certificates to write to file. No CA file is
 	// written if this is nil.
 	rootCAs rootca.Interface
@@ -206,6 +266,11 @@ func New(ctx context.Context, log logr.Logger, opts Options) (*Driver, error) {
 		certFileName:               opts.CertificateFileName,
 		keyFileName:                opts.KeyFileName,
 		caFileName:                 opts.CAFileName,
+		keystoreEnabled:            opts.KeystoreEnabled,
+		keystoreFileName:           opts.KeystoreFileName,
+		jksFileName:                opts.JKSFileName,
+		keystorePassword:           opts.KeystorePassword,
+		keystoreAlias:              opts.KeystoreAlias,
 		issuerRef:                  opts.IssuerRef,
 		rootCAs:                    opts.RootCAs,
 		certificateRequestDuration: opts.CertificateRequestDuration,
@@ -232,6 +297,12 @@ func New(ctx context.Context, log logr.Logger, opts Options) (*Driver, error) {
 	if d.certificateRequestDuration == 0 {
 		d.certificateRequestDuration = time.Hour
 	}
+	if d.keystoreEnabled && len(d.keystorePassword) == 0 {
+		d.keystorePassword = DefaultKeystorePassword
+	}
+	if len(d.keystoreAlias) == 0 {
+		d.keystoreAlias = DefaultKeystoreAlias
+	}
 
 	var err error
 	store, err := storage.NewFilesystem(d.log, opts.DataRoot)
@@ -244,7 +315,7 @@ func New(ctx context.Context, log logr.Logger, opts Options) (*Driver, error) {
 
 	d.store = store
 	d.camanager = newCAManager(log, store, opts.RootCAs,
-		opts.CertificateFileName, opts.KeyFileName, opts.CAFileName)
+		d.certFileName, d.keyFileName, d.caFileName)
 
 	cmclient, err := cmclient.NewForConfig(opts.RestConfig)
 	if err != nil {
@@ -482,6 +553,40 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 		data[d.caFileName] = d.rootCAs.CertificatesPEM()
 	}
 
+	if d.keystoreEnabled && (len(d.keystoreFileName) > 0 || len(d.jksFileName) > 0) {
+		chainCerts, err := parseCertChain(chain)
+		if err != nil {
+			return fmt.Errorf("parsing certificate chain for keystore: %w", err)
+		}
+		leaf, fellBack := pickLeaf(chainCerts)
+		if leaf == nil {
+			return fmt.Errorf("no certificates found in chain for keystore")
+		}
+		if fellBack {
+			d.log.Info("no non-CA certificate found in chain; falling back to the first cert for keystore",
+				"chainLength", len(chainCerts),
+				"leafSubject", leaf.Subject.String(),
+				"leafIsCA", leaf.IsCA,
+			)
+		}
+
+		if len(d.keystoreFileName) > 0 {
+			p12, err := encodePKCS12(key, leaf, d.keystorePassword)
+			if err != nil {
+				return fmt.Errorf("failed to encode PKCS12 keystore: %w", err)
+			}
+			data[d.keystoreFileName] = p12
+		}
+
+		if len(d.jksFileName) > 0 {
+			jks, err := encodeJKS(pemBytes, leaf, d.keystoreAlias, d.keystorePassword)
+			if err != nil {
+				return fmt.Errorf("failed to encode JKS keystore: %w", err)
+			}
+			data[d.jksFileName] = jks
+		}
+	}
+
 	// Write data to the actual volume that gets mounted.
 	if err := d.store.WriteFiles(meta, data); err != nil {
 		return fmt.Errorf("writing data: %w", err)
@@ -493,4 +598,79 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 	}
 
 	return nil
+}
+
+// encodePKCS12 builds a PKCS12 keystore containing the private key and leaf
+// certificate, matching the legacy Athenz SIA behaviour produced by
+// `openssl pkcs12 -export -noiter -nomaciter`. CA / intermediate certificates
+// are intentionally omitted to mirror the legacy on-disk format.
+func encodePKCS12(key crypto.PrivateKey, leaf *x509.Certificate, password string) ([]byte, error) {
+	return pkcs12.LegacyRC2.Encode(key, leaf, nil, password)
+}
+
+// encodeJKS builds a JKS keystore containing the private key and leaf
+// certificate, mirroring the legacy Athenz SIA behaviour produced by
+// `keytool -importkeystore` from a PKCS12 source.
+func encodeJKS(privateKeyDER []byte, leaf *x509.Certificate, alias, password string) ([]byte, error) {
+	ks := keystore.New()
+	if err := ks.SetPrivateKeyEntry(alias, keystore.PrivateKeyEntry{
+		// Use the leaf's NotBefore (not time.Now()) so the encoded JKS bytes
+		// are a pure function of the certificate. This keeps the on-disk file
+		// stable for a given cert and avoids needlessly tripping file
+		// watchers when writeKeypair runs without the cert actually changing.
+		CreationTime: leaf.NotBefore,
+		PrivateKey:   privateKeyDER,
+		CertificateChain: []keystore.Certificate{
+			{Type: "X509", Content: leaf.Raw},
+		},
+	}, []byte(password)); err != nil {
+		return nil, fmt.Errorf("setting JKS private key entry: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := ks.Store(&buf, []byte(password)); err != nil {
+		return nil, fmt.Errorf("storing JKS keystore: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// pickLeaf returns the first non-CA certificate from certs (i.e. the end-entity
+// leaf), regardless of position in the chain. As a safety net for chains where
+// no certificate has IsCA=false (which would be unusual for an issued service
+// identity), it falls back to the first certificate and reports fellBack=true
+// so the caller can surface the anomaly. Returns (nil, false) if certs is
+// empty.
+func pickLeaf(certs []*x509.Certificate) (leaf *x509.Certificate, fellBack bool) {
+	for _, c := range certs {
+		if !c.IsCA {
+			return c, false
+		}
+	}
+	if len(certs) > 0 {
+		return certs[0], true
+	}
+	return nil, false
+}
+
+// parseCertChain decodes all CERTIFICATE PEM blocks in data into x509
+// certificates, preserving order.
+func parseCertChain(data []byte) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	rest := data
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		c, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, c)
+	}
+	return certs, nil
 }
