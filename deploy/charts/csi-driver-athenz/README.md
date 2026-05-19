@@ -155,6 +155,45 @@ managed volumes.
 > ```
 
 -- File name where the CA bundles are written to, if enabled.
+#### **app.driver.keystore.enabled** ~ `bool`
+> Default value:
+> ```yaml
+> false
+> ```
+
+-- Master switch for PKCS12 / JKS keystore provisioning.
+#### **app.driver.keystore.pkcs12FileName** ~ `string`
+> Default value:
+> ```yaml
+> service.pkcs12
+> ```
+
+-- File name of the PKCS12 keystore written into the pod's volume.  
+Set to an empty string to skip PKCS12 generation while still writing the JKS keystore. The keystore uses the legacy PKCS12 encoding to mirror `openssl pkcs12 -export -noiter -nomaciter` so old Java JREs remain compatible.
+#### **app.driver.keystore.jksFileName** ~ `string`
+> Default value:
+> ```yaml
+> service.jks
+> ```
+
+-- File name of the JKS keystore written into the pod's volume. Set  
+to an empty string to skip JKS generation while still writing the  
+PKCS12 keystore.
+#### **app.driver.keystore.passwordFile** ~ `string`
+> Default value:
+> ```yaml
+> ""
+> ```
+
+-- File path inside the driver container whose contents are read as  
+the keystore password. Typically the mount path of a Secret-backed volume. When empty, the well-known Java default `changeit` is used. The password may also be supplied via the `KEYSTORE_PASSWORD` environment variable, which takes precedence over this file. The password is never accepted on the command line, to avoid leaking it via `ps`.
+#### **app.driver.keystore.alias** ~ `string`
+> Default value:
+> ```yaml
+> service
+> ```
+
+-- Alias used for the private key entry inside the JKS keystore.
 #### **app.driver.volumes** ~ `array`
 > Default value:
 > ```yaml
@@ -427,4 +466,70 @@ Additional labels to give the ServiceMonitor resource.
 > ```
 
 Labels to apply to all resources
+#### **nodeSelector** ~ `object`
+> Default value:
+> ```yaml
+> kubernetes.io/os: linux
+> ```
+
+Kubernetes node selector: node labels for pod assignment.
+
+#### **affinity** ~ `object`
+> Default value:
+> ```yaml
+> {}
+> ```
+
+Kubernetes affinity: constraints for pod assignment.  
+  
+For example:
+
+```yaml
+affinity:
+  nodeAffinity:
+   requiredDuringSchedulingIgnoredDuringExecution:
+     nodeSelectorTerms:
+     - matchExpressions:
+       - key: foo.bar.com/role
+         operator: In
+         values:
+         - master
+```
+#### **tolerations** ~ `array`
+> Default value:
+> ```yaml
+> []
+> ```
+
+Kubernetes pod tolerations for cert-manager-csi-driver-spiffe.  
+  
+For example:
+
+```yaml
+tolerations:
+- key: foo.bar.com/role
+  operator: Equal
+  value: master
+  effect: NoSchedule
+```
+#### **topologySpreadConstraints** ~ `array`
+> Default value:
+> ```yaml
+> []
+> ```
+
+List of Kubernetes TopologySpreadConstraints.  
+  
+For example:
+
+```yaml
+topologySpreadConstraints:
+- maxSkew: 2
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway
+  labelSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/component: controller
+```
 

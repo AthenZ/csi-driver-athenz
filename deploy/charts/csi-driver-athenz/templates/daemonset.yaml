@@ -94,6 +94,16 @@ spec:
             - --cloud-provider={{ .Values.app.athenz.cloudProvider }}
             - --cloud-region={{ .Values.app.athenz.cloudRegion }}
 
+          {{- if .Values.app.driver.keystore.enabled }}
+            - --enable-keystore
+            - --file-name-keystore={{ .Values.app.driver.keystore.pkcs12FileName }}
+            - --file-name-jks={{ .Values.app.driver.keystore.jksFileName }}
+            - --keystore-alias={{ .Values.app.driver.keystore.alias }}
+          {{- if .Values.app.driver.keystore.passwordFile }}
+            - --keystore-password-file={{ .Values.app.driver.keystore.passwordFile }}
+          {{- end }}
+          {{- end }}
+
           env:
             - name: NODE_ID
               valueFrom:
