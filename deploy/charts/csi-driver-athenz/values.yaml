@@ -72,6 +72,36 @@ app:
       key: tls.key
       # -- File name where the CA bundles are written to, if enabled.
       ca: ca.crt
+
+    # Opt-in provisioning of PKCS12 and JKS keystores alongside the PEM
+    # identity files. When `enabled` is false (the default), no keystores
+    # are written and the rest of the fields in this block have no effect.
+    # Java consumers that expect the legacy Athenz SIA on-disk layout
+    # (`service.pkcs12` + `service.jks`) can opt in here without needing a
+    # sidecar or shell hook.
+    keystore:
+      # -- Master switch for PKCS12 / JKS keystore provisioning.
+      enabled: false
+      # -- File name of the PKCS12 keystore written into the pod's volume.
+      # Set to an empty string to skip PKCS12 generation while still writing
+      # the JKS keystore. The keystore uses the legacy PKCS12 encoding to
+      # mirror `openssl pkcs12 -export -noiter -nomaciter` so old Java JREs
+      # remain compatible.
+      pkcs12FileName: service.pkcs12
+      # -- File name of the JKS keystore written into the pod's volume. Set
+      # to an empty string to skip JKS generation while still writing the
+      # PKCS12 keystore.
+      jksFileName: service.jks
+      # -- File path inside the driver container whose contents are read as
+      # the keystore password. Typically the mount path of a Secret-backed
+      # volume. When empty, the well-known Java default `changeit` is used.
+      # The password may also be supplied via the `KEYSTORE_PASSWORD`
+      # environment variable, which takes precedence over this file. The
+      # password is never accepted on the command line, to avoid leaking it
+      # via `ps`.
+      passwordFile: ""
+      # -- Alias used for the private key entry inside the JKS keystore.
+      alias: service
     # -- Optional extra volumes. Useful for mounting root CAs
     volumes: []
     #- name: root-cas
