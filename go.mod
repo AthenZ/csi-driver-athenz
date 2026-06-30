@@ -3,16 +3,16 @@ module github.com/AthenZ/csi-driver-athenz
 go 1.26.0
 
 require (
-	github.com/cert-manager/cert-manager v1.20.2
-	github.com/cert-manager/csi-lib v0.10.0
+	github.com/cert-manager/cert-manager v1.20.3
+	github.com/cert-manager/csi-lib v0.11.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.32.0
-	github.com/onsi/gomega v1.42.0
+	github.com/onsi/gomega v1.42.1
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/spiffe/go-spiffe/v2 v2.6.0
+	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.36.2
@@ -23,7 +23,7 @@ require (
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
 	sigs.k8s.io/controller-runtime v0.24.1
-	software.sslmate.com/src/go-pkcs12 v0.7.2
+	software.sslmate.com/src/go-pkcs12 v0.7.3
 )
 
 require (
