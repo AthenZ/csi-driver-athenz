@@ -44,6 +44,12 @@ type Flags struct {
 	// API.
 	RestConfig *rest.Config
 
+	// kubeAPIQPS and kubeAPIBurst tune the client-go rate limiter applied to
+	// RestConfig. The client-go defaults (5 QPS / 10 burst) throttle controllers
+	// under bursty load; raise these to increase sustained API throughput.
+	kubeAPIQPS   float32
+	kubeAPIBurst int
+
 	// DriverName is the driver name as installed in Kubernetes.
 	DriverName string
 
@@ -76,6 +82,13 @@ func (f *Flags) Complete() error {
 	f.RestConfig, err = f.kubeConfigFlags.ToRESTConfig()
 	if err != nil {
 		return fmt.Errorf("failed to build kubernetes rest config: %s", err)
+	}
+
+	if f.kubeAPIQPS > 0 {
+		f.RestConfig.QPS = f.kubeAPIQPS
+	}
+	if f.kubeAPIBurst > 0 {
+		f.RestConfig.Burst = f.kubeAPIBurst
 	}
 
 	return nil
@@ -116,4 +129,10 @@ func (f *Flags) addAppFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&f.logLevel,
 		"log-level", "v", "1",
 		"Log level (1-5).")
+
+	fs.Float32Var(&f.kubeAPIQPS, "kube-api-qps", 0,
+		"Maximum queries-per-second to the Kubernetes API server (0 keeps the client-go default of 5).")
+
+	fs.IntVar(&f.kubeAPIBurst, "kube-api-burst", 0,
+		"Maximum burst for throttling requests to the Kubernetes API server (0 keeps the client-go default of 10).")
 }
