@@ -248,6 +248,28 @@ app:
     #   cpu: 100m
     #   memory: 128Mi
 
+    # -- Kubernetes node selector for the approver Deployment only. When empty,
+    # the top-level `nodeSelector` (shared with the driver DaemonSet) is used.
+    nodeSelector: {}
+    # -- Kubernetes affinity for the approver Deployment only. When empty, the
+    # top-level `affinity` is used. Lets the approver be kept off dedicated
+    # node pools that the driver DaemonSet must still cover.
+    #
+    # For example:
+    #   affinity:
+    #     nodeAffinity:
+    #       requiredDuringSchedulingIgnoredDuringExecution:
+    #         nodeSelectorTerms:
+    #         - matchExpressions:
+    #           - key: nodegroup
+    #             operator: In
+    #             values:
+    #             - general
+    affinity: {}
+    # -- Kubernetes tolerations for the approver Deployment only. When empty,
+    # the top-level `tolerations` are used.
+    tolerations: []
+
 # -- Optional priority class to be used for the csi-driver pods.
 priorityClassName: ""
 
