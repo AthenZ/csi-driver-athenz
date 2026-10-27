@@ -77,11 +77,17 @@
     "helm-values.app.approver": {
       "additionalProperties": false,
       "properties": {
+        "affinity": {
+          "$ref": "#/$defs/helm-values.app.approver.affinity"
+        },
         "metrics": {
           "$ref": "#/$defs/helm-values.app.approver.metrics"
         },
         "multiTenant": {
           "$ref": "#/$defs/helm-values.app.approver.multiTenant"
+        },
+        "nodeSelector": {
+          "$ref": "#/$defs/helm-values.app.approver.nodeSelector"
         },
         "readinessProbe": {
           "$ref": "#/$defs/helm-values.app.approver.readinessProbe"
@@ -94,8 +100,16 @@
         },
         "signerName": {
           "$ref": "#/$defs/helm-values.app.approver.signerName"
+        },
+        "tolerations": {
+          "$ref": "#/$defs/helm-values.app.approver.tolerations"
         }
       },
+      "type": "object"
+    },
+    "helm-values.app.approver.affinity": {
+      "default": {},
+      "description": "-- Kubernetes affinity for the approver Deployment only. When empty, the\ntop-level `affinity` is used. Lets the approver be kept off dedicated node pools that the driver DaemonSet must still cover.\n\nFor example:\naffinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n      - matchExpressions:\n        - key: nodegroup\n          operator: In\n          values:\n          - general",
       "type": "object"
     },
     "helm-values.app.approver.metrics": {
@@ -190,6 +204,11 @@
       "default": false,
       "type": "boolean"
     },
+    "helm-values.app.approver.nodeSelector": {
+      "default": {},
+      "description": "-- Kubernetes node selector for the approver Deployment only. When empty,\nthe top-level `nodeSelector` (shared with the driver DaemonSet) is used.",
+      "type": "object"
+    },
     "helm-values.app.approver.readinessProbe": {
       "additionalProperties": false,
       "properties": {
@@ -217,6 +236,12 @@
       "default": "clusterissuers.cert-manager.io/*",
       "description": "-- The signer name that csi-driver-athenz approver will be given\npermission to approve and deny. CertificateRequests referencing this signer name can be processed by the Athenz approver. See: https://cert-manager.io/docs/concepts/certificaterequest/#approval",
       "type": "string"
+    },
+    "helm-values.app.approver.tolerations": {
+      "default": [],
+      "description": "-- Kubernetes tolerations for the approver Deployment only. When empty,\nthe top-level `tolerations` are used.",
+      "items": {},
+      "type": "array"
     },
     "helm-values.app.athenz": {
       "additionalProperties": false,

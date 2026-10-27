@@ -461,6 +461,44 @@ Additional labels to give the ServiceMonitor resource.
 > ```yaml
 > {}
 > ```
+#### **app.approver.nodeSelector** ~ `object`
+> Default value:
+> ```yaml
+> {}
+> ```
+
+-- Kubernetes node selector for the approver Deployment only. When empty,  
+the top-level `nodeSelector` (shared with the driver DaemonSet) is used.
+#### **app.approver.affinity** ~ `object`
+> Default value:
+> ```yaml
+> {}
+> ```
+
+-- Kubernetes affinity for the approver Deployment only. When empty, the  
+top-level `affinity` is used. Lets the approver be kept off dedicated node pools that the driver DaemonSet must still cover.  
+  
+For example:
+
+```yaml
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: nodegroup
+          operator: In
+          values:
+          - general
+```
+#### **app.approver.tolerations** ~ `array`
+> Default value:
+> ```yaml
+> []
+> ```
+
+-- Kubernetes tolerations for the approver Deployment only. When empty,  
+the top-level `tolerations` are used.
 #### **priorityClassName** ~ `string`
 > Default value:
 > ```yaml
