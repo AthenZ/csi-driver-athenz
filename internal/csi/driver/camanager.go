@@ -203,9 +203,9 @@ func (c *camanager) updateRootCAFiles() error {
 		}
 
 		// The atomic writer deletes every file that is not in its payload, so
-		// the certificate and key have to be read back and written again next to
-		// the CA bundle. This is the path with the renewal race described above;
-		// it only runs in atomic-dir mode.
+		// the certificate, key and role certificates have to be read back and
+		// written again next to the CA bundle. This is the path with the renewal
+		// race described above; it only runs in atomic-dir mode.
 		certData, err := c.store.ReadFile(volumeID, c.certFileName)
 		if err != nil {
 			return fmt.Errorf("%q: failed to read certificate file from volume to perform write: %w",
@@ -217,11 +217,25 @@ func (c *camanager) updateRootCAFiles() error {
 				volumeID, err)
 		}
 
-		if err := c.store.WriteFiles(meta, map[string][]byte{
+		payload := map[string][]byte{
 			c.certFileName: certData,
 			c.keyFileName:  keyData,
 			c.caFileName:   caPEM,
-		}); err != nil {
+		}
+		roleFiles, err := roleCertFiles(meta.VolumeContext)
+		if err != nil {
+			return fmt.Errorf("%q: %w", volumeID, err)
+		}
+		for _, name := range roleFiles {
+			roleData, err := c.store.ReadFile(volumeID, name)
+			if err != nil {
+				return fmt.Errorf("%q: failed to read role certificate file %q from volume to perform write: %w",
+					volumeID, name, err)
+			}
+			payload[name] = roleData
+		}
+
+		if err := c.store.WriteFiles(meta, payload); err != nil {
 			return fmt.Errorf("%q: failed to write new ca data to volume: %w",
 				volumeID, err)
 		}
