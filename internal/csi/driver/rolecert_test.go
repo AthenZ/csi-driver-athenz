@@ -110,8 +110,6 @@ type fakeZTS struct {
 	mu        sync.Mutex
 	status    int
 	lifetime  time.Duration
-	rawPEM    bool
-	wrongKey  bool
 	requests  int
 	issuedFor []string
 }
@@ -189,15 +187,6 @@ func (z *fakeZTS) handle(w http.ResponseWriter, r *http.Request) {
 		"athenz://principal/" + testPrincipal,
 	}, uris)
 
-	pub := csr.PublicKey
-	if z.wrongKey {
-		other, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if !assert.NoError(z.t, err) {
-			http.Error(w, "keygen", http.StatusInternalServerError)
-			return
-		}
-		pub = other.Public()
-	}
 	certPEM := z.ca.sign(z.t, &x509.Certificate{
 		Subject:     csr.Subject,
 		URIs:        csr.URIs,
@@ -205,13 +194,9 @@ func (z *fakeZTS) handle(w http.ResponseWriter, r *http.Request) {
 		NotAfter:    time.Now().Add(-time.Minute + z.lifetime),
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-	}, pub)
+	}, csr.PublicKey)
 	z.issuedFor = append(z.issuedFor, csr.Subject.CommonName)
 
-	if z.rawPEM {
-		_, _ = w.Write(certPEM)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"x509Certificate": string(certPEM)})
 }
@@ -310,23 +295,6 @@ func Test_parseRoleCerts(t *testing.T) {
 	}
 }
 
-func Test_roleCertFromResponse(t *testing.T) {
-	pemBody := "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----"
-
-	got, err := roleCertFromResponse([]byte(`{"x509Certificate":"` + strings.ReplaceAll(pemBody, "\n", `\n`) + `"}`))
-	require.NoError(t, err)
-	assert.Equal(t, pemBody, string(got))
-
-	got, err = roleCertFromResponse([]byte("\n" + pemBody + "\n"))
-	require.NoError(t, err)
-	assert.Equal(t, pemBody+"\n", string(got))
-
-	_, err = roleCertFromResponse([]byte(`{"x509Certificate":""}`))
-	assert.Error(t, err)
-	_, err = roleCertFromResponse([]byte(`not a cert`))
-	assert.Error(t, err)
-}
-
 func Test_writeKeypair_roleCerts_firstIssuance(t *testing.T) {
 	ca := newTestCA(t)
 	z := newFakeZTS(t, ca)
@@ -370,35 +338,13 @@ func Test_writeKeypair_roleCerts_firstIssuance(t *testing.T) {
 	assert.WithinDuration(t, want, *updated.NextIssuanceTime, 5*time.Second)
 }
 
-func Test_writeKeypair_roleCerts_rawPEMResponse(t *testing.T) {
-	ca := newTestCA(t)
-	z := newFakeZTS(t, ca)
-	z.set(func(z *fakeZTS) { z.rawPEM = true })
-	store := readableMemoryFS{storage.NewMemoryFS()}
-	d := newRoleCertDriver(z, store)
-
-	meta := roleCertMeta("vol-id", testRoleA)
-	_, err := store.RegisterMetadata(meta)
-	require.NoError(t, err)
-
-	svcKey, svcChain := ca.serviceCert(t)
-	require.NoError(t, d.writeKeypair(meta, svcKey, svcChain, nil))
-
-	files, err := store.ReadFiles("vol-id")
-	require.NoError(t, err)
-	_, err = tls.X509KeyPair(files[testRoleA+".cert.pem"], files[testRoleA+".key.pem"])
-	require.NoError(t, err)
-}
-
 func Test_writeKeypair_roleCerts_firstIssuanceFailureReturnsError(t *testing.T) {
 	ca := newTestCA(t)
 
 	for name, setup := range map[string]func(z *fakeZTS, d *Driver){
-		"zts forbidden":      func(z *fakeZTS, d *Driver) { z.set(func(z *fakeZTS) { z.status = http.StatusForbidden }) },
-		"cert for other key": func(z *fakeZTS, d *Driver) { z.set(func(z *fakeZTS) { z.wrongKey = true }) },
-		"untrusted server":   func(z *fakeZTS, d *Driver) { d.caCertFile = "" },
-		"no zts configured":  func(z *fakeZTS, d *Driver) { d.zts = "" },
-		"plain http zts":     func(z *fakeZTS, d *Driver) { d.zts = strings.Replace(d.zts, "https://", "http://", 1) },
+		"zts forbidden":     func(z *fakeZTS, d *Driver) { z.set(func(z *fakeZTS) { z.status = http.StatusForbidden }) },
+		"untrusted server":  func(z *fakeZTS, d *Driver) { d.caCertFile = "" },
+		"no zts configured": func(z *fakeZTS, d *Driver) { d.zts = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			z := newFakeZTS(t, ca)

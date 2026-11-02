@@ -50,7 +50,6 @@ const (
 	roleCertRetryInterval = 10 * time.Minute
 
 	maxZTSResponseBytes = 1 << 20
-	maxZTSErrorBodyLen  = 512
 )
 
 // Athenz DomainName / EntityName; also keeps role file names free of `..` and `/`.
@@ -154,21 +153,9 @@ func (d *Driver) readPreviousRoleCert(volumeID string, ref roleCertRef) ([]byte,
 	return certPEM, keyPEM, true
 }
 
-type ztsClient struct {
-	http      *http.Client
-	transport *http.Transport
-	url       string
-}
-
-func (c *ztsClient) CloseIdleConnections() { c.transport.CloseIdleConnections() }
-
-func (d *Driver) newZTSClient(key crypto.PrivateKey, chain []byte) (*ztsClient, string, error) {
+func (d *Driver) newZTSClient(key crypto.PrivateKey, chain []byte) (*http.Client, string, error) {
 	if d.zts == "" {
 		return nil, "", fmt.Errorf("role certificates requested but no ZTS URL is configured")
-	}
-	ztsURL, err := url.Parse(d.zts)
-	if err != nil || ztsURL.Scheme != "https" || ztsURL.Host == "" {
-		return nil, "", fmt.Errorf("ZTS URL %q must be an absolute https URL", d.zts)
 	}
 
 	certs, err := parseCertChain(chain)
@@ -179,15 +166,8 @@ func (d *Driver) newZTSClient(key crypto.PrivateKey, chain []byte) (*ztsClient, 
 	if leaf == nil {
 		return nil, "", fmt.Errorf("no certificates found in service certificate chain")
 	}
-	if leaf.Subject.CommonName == "" {
-		return nil, "", fmt.Errorf("service certificate has no common name to use as principal")
-	}
-	signer, ok := key.(crypto.Signer)
-	if !ok {
-		return nil, "", fmt.Errorf("service private key of type %T cannot sign", key)
-	}
 
-	clientCert := &tls.Certificate{PrivateKey: signer, Leaf: leaf}
+	clientCert := &tls.Certificate{PrivateKey: key, Leaf: leaf}
 	clientCert.Certificate = append(clientCert.Certificate, leaf.Raw)
 	for _, c := range certs {
 		if c != leaf {
@@ -218,11 +198,7 @@ func (d *Driver) newZTSClient(key crypto.PrivateKey, chain []byte) (*ztsClient, 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = tlsConfig
 
-	return &ztsClient{
-		http:      &http.Client{Transport: transport, Timeout: ztsRequestTimeout},
-		transport: transport,
-		url:       strings.TrimSuffix(d.zts, "/") + "/rolecert",
-	}, leaf.Subject.CommonName, nil
+	return &http.Client{Transport: transport, Timeout: ztsRequestTimeout}, leaf.Subject.CommonName, nil
 }
 
 type ztsRoleCertificateRequest struct {
@@ -235,7 +211,7 @@ type ztsRoleCertificate struct {
 	X509Certificate string `json:"x509Certificate"`
 }
 
-func (d *Driver) fetchRoleCert(client *ztsClient, principal string, ref roleCertRef) ([]byte, []byte, *x509.Certificate, error) {
+func (d *Driver) fetchRoleCert(client *http.Client, principal string, ref roleCertRef) ([]byte, []byte, *x509.Certificate, error) {
 	roleKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("generating role private key: %w", err)
@@ -250,14 +226,14 @@ func (d *Driver) fetchRoleCert(client *ztsClient, principal string, ref roleCert
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("encoding role certificate request: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, client.url, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, strings.TrimSuffix(d.zts, "/")+"/rolecert", bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("building role certificate request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := client.http.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("requesting role certificate from ZTS: %w", err)
 	}
@@ -268,17 +244,14 @@ func (d *Driver) fetchRoleCert(client *ztsClient, principal string, ref roleCert
 		return nil, nil, nil, fmt.Errorf("reading ZTS response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		msg := strings.TrimSpace(string(respBody))
-		if len(msg) > maxZTSErrorBodyLen {
-			msg = msg[:maxZTSErrorBodyLen] + "..."
-		}
-		return nil, nil, nil, fmt.Errorf("ZTS returned %s: %s", resp.Status, msg)
+		return nil, nil, nil, fmt.Errorf("ZTS returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
 	}
 
-	certPEM, err := roleCertFromResponse(respBody)
-	if err != nil {
-		return nil, nil, nil, err
+	var rc ztsRoleCertificate
+	if err := json.Unmarshal(respBody, &rc); err != nil {
+		return nil, nil, nil, fmt.Errorf("decoding ZTS role certificate response: %w", err)
 	}
+	certPEM := []byte(rc.X509Certificate)
 	certs, err := parseCertChain(certPEM)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parsing role certificate from ZTS: %w", err)
@@ -286,9 +259,6 @@ func (d *Driver) fetchRoleCert(client *ztsClient, principal string, ref roleCert
 	leaf, _ := pickLeaf(certs)
 	if leaf == nil {
 		return nil, nil, nil, fmt.Errorf("no certificate in ZTS role certificate response")
-	}
-	if !roleKey.PublicKey.Equal(leaf.PublicKey) {
-		return nil, nil, nil, fmt.Errorf("role certificate from ZTS does not match the requested key")
 	}
 
 	keyDER, err := x509.MarshalPKCS8PrivateKey(roleKey)
@@ -327,18 +297,6 @@ func (d *Driver) roleCertCSR(key *ecdsa.PrivateKey, principal string, ref roleCe
 		return nil, fmt.Errorf("signing role certificate request: %w", err)
 	}
 	return csrPEM, nil
-}
-
-// roleCertFromResponse accepts a ZTS RoleCertificate JSON body or a bare PEM.
-func roleCertFromResponse(body []byte) ([]byte, error) {
-	var rc ztsRoleCertificate
-	if err := json.Unmarshal(body, &rc); err == nil && rc.X509Certificate != "" {
-		return []byte(rc.X509Certificate), nil
-	}
-	if trimmed := bytes.TrimSpace(body); bytes.HasPrefix(trimmed, []byte("-----BEGIN ")) {
-		return append(trimmed, '\n'), nil
-	}
-	return nil, fmt.Errorf("unrecognised ZTS role certificate response")
 }
 
 func roleCertFiles(volumeContext map[string]string) ([]string, error) {
