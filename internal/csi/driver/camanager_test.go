@@ -156,8 +156,9 @@ var _ rootca.Interface = &fakeRootCAs{}
 // fakeCAStore implements the atomic-dir surface: only whole-payload writes, with
 // the atomic writer's desired-state semantics.
 type fakeCAStore struct {
-	volumeIDs []string
-	files     map[string]map[string][]byte
+	volumeIDs     []string
+	files         map[string]map[string][]byte
+	volumeContext map[string]string
 
 	// writeFilesPayloads records every whole-volume write.
 	writeFilesPayloads []map[string][]byte
@@ -173,7 +174,7 @@ func newFakeCAStore(volumeID string, files map[string][]byte) *fakeCAStore {
 func (f *fakeCAStore) ListVolumes() ([]string, error) { return f.volumeIDs, nil }
 
 func (f *fakeCAStore) ReadMetadata(volumeID string) (metadata.Metadata, error) {
-	return metadata.Metadata{VolumeID: volumeID}, nil
+	return metadata.Metadata{VolumeID: volumeID, VolumeContext: f.volumeContext}, nil
 }
 
 func (f *fakeCAStore) ReadFile(volumeID, name string) ([]byte, error) {
