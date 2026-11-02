@@ -42,6 +42,11 @@ import (
 const (
 	roleCertFileSuffix = ".cert.pem"
 	roleKeyFileSuffix  = ".key.pem"
+	roleP12FileSuffix  = ".pkcs12"
+	roleJKSFileSuffix  = ".jks"
+
+	// roleJKSAlias matches the alias keytool assigns when SIA imports its openssl PKCS12.
+	roleJKSAlias = "1"
 
 	ztsRequestTimeout = 30 * time.Second
 
@@ -110,29 +115,74 @@ func (d *Driver) issueRoleCerts(meta metadata.Metadata, key crypto.PrivateKey, c
 	}
 
 	for _, ref := range refs {
+		var certPEM, keyPEM []byte
 		err := clientErr
 		if err == nil {
 			var rc *roleCert
 			if rc, err = d.fetchRoleCert(client, principal, ref); err == nil {
-				files[ref.certFileName()] = rc.cert
-				files[ref.keyFileName()] = rc.key
+				certPEM, keyPEM = rc.cert, rc.key
 				earlier(rc.renewAt)
-				continue
 			}
 		}
 
-		prevCert, prevKey, ok := d.readPreviousRoleCert(meta.VolumeID, ref)
-		if !ok {
-			return nil, nil, fmt.Errorf("issuing role certificate %q: %w", ref.name(), err)
+		if err != nil {
+			var ok bool
+			if certPEM, keyPEM, ok = d.readPreviousRoleCert(meta.VolumeID, ref); !ok {
+				return nil, nil, fmt.Errorf("issuing role certificate %q: %w", ref.name(), err)
+			}
+			d.log.Error(err, "failed to renew role certificate, keeping the previous one",
+				"volume", meta.VolumeID, "role", ref.name())
+			earlier(time.Now().Add(roleCertRetryInterval))
 		}
-		d.log.Error(err, "failed to renew role certificate, keeping the previous one",
-			"volume", meta.VolumeID, "role", ref.name())
-		files[ref.certFileName()] = prevCert
-		files[ref.keyFileName()] = prevKey
-		earlier(time.Now().Add(roleCertRetryInterval))
+
+		files[ref.certFileName()] = certPEM
+		files[ref.keyFileName()] = keyPEM
+		if err := d.addRoleKeystores(files, ref, certPEM, keyPEM); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return files, next, nil
+}
+
+// addRoleKeystores writes `<role>.pkcs12` and `<role>.jks` under the same switches as the service keystores.
+func (d *Driver) addRoleKeystores(files map[string][]byte, ref roleCertRef, certPEM, keyPEM []byte) error {
+	if !d.keystoreEnabled || (d.keystoreFileName == "" && d.jksFileName == "") {
+		return nil
+	}
+
+	certs, err := parseCertChain(certPEM)
+	if err != nil {
+		return fmt.Errorf("parsing role certificate %q for keystore: %w", ref.name(), err)
+	}
+	leaf, _ := pickLeaf(certs)
+	if leaf == nil {
+		return fmt.Errorf("no certificate in role certificate %q for keystore", ref.name())
+	}
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return fmt.Errorf("decoding role private key %q for keystore", ref.name())
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing role private key %q for keystore: %w", ref.name(), err)
+	}
+
+	if d.keystoreFileName != "" {
+		p12, err := encodePKCS12(key, leaf, d.keystorePassword)
+		if err != nil {
+			return fmt.Errorf("encoding PKCS12 keystore for role %q: %w", ref.name(), err)
+		}
+		files[ref.name()+roleP12FileSuffix] = p12
+	}
+	if d.jksFileName != "" {
+		jks, err := encodeJKS(block.Bytes, leaf, roleJKSAlias, d.keystorePassword)
+		if err != nil {
+			return fmt.Errorf("encoding JKS keystore for role %q: %w", ref.name(), err)
+		}
+		files[ref.name()+roleJKSFileSuffix] = jks
+	}
+	return nil
 }
 
 func (d *Driver) readPreviousRoleCert(volumeID string, ref roleCertRef) ([]byte, []byte, bool) {

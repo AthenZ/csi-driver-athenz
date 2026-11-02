@@ -25,3 +25,6 @@ The mount fails until every role certificate has been issued. On renewal, a role
 that ZTS refuses keeps its previous certificate and is retried after 10 minutes,
 so the service certificate still renews. Role certificates renew at 2/3 of their
 lifetime, which can be sooner than `refresh-interval`.
+
+With `--enable-keystore`, each role also gets `<role>.pkcs12` and `<role>.jks`
+(alias `1`, as SIA writes them), encrypted with the service keystore password.
