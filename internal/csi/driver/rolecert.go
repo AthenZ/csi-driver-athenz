@@ -112,13 +112,11 @@ func (d *Driver) issueRoleCerts(meta metadata.Metadata, key crypto.PrivateKey, c
 	for _, ref := range refs {
 		err := clientErr
 		if err == nil {
-			var certPEM, keyPEM []byte
-			var leaf *x509.Certificate
-			certPEM, keyPEM, leaf, err = d.fetchRoleCert(client, principal, ref)
-			if err == nil {
-				files[ref.certFileName()] = certPEM
-				files[ref.keyFileName()] = keyPEM
-				earlier(leaf.NotBefore.Add(leaf.NotAfter.Sub(leaf.NotBefore) * 2 / 3))
+			var rc *roleCert
+			if rc, err = d.fetchRoleCert(client, principal, ref); err == nil {
+				files[ref.certFileName()] = rc.cert
+				files[ref.keyFileName()] = rc.key
+				earlier(rc.renewAt)
 				continue
 			}
 		}
@@ -211,63 +209,71 @@ type ztsRoleCertificate struct {
 	X509Certificate string `json:"x509Certificate"`
 }
 
-func (d *Driver) fetchRoleCert(client *http.Client, principal string, ref roleCertRef) ([]byte, []byte, *x509.Certificate, error) {
+type roleCert struct {
+	cert, key []byte
+	renewAt   time.Time
+}
+
+func (d *Driver) fetchRoleCert(client *http.Client, principal string, ref roleCertRef) (*roleCert, error) {
 	roleKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("generating role private key: %w", err)
+		return nil, fmt.Errorf("generating role private key: %w", err)
 	}
 
 	csrPEM, err := d.roleCertCSR(roleKey, principal, ref)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	body, err := json.Marshal(ztsRoleCertificateRequest{CSR: string(csrPEM)})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("encoding role certificate request: %w", err)
+		return nil, fmt.Errorf("encoding role certificate request: %w", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, strings.TrimSuffix(d.zts, "/")+"/rolecert", bytes.NewReader(body))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("building role certificate request: %w", err)
+		return nil, fmt.Errorf("building role certificate request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("requesting role certificate from ZTS: %w", err)
+		return nil, fmt.Errorf("requesting role certificate from ZTS: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxZTSResponseBytes))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("reading ZTS response: %w", err)
+		return nil, fmt.Errorf("reading ZTS response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, nil, fmt.Errorf("ZTS returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return nil, fmt.Errorf("ZTS returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
 	}
 
 	var rc ztsRoleCertificate
 	if err := json.Unmarshal(respBody, &rc); err != nil {
-		return nil, nil, nil, fmt.Errorf("decoding ZTS role certificate response: %w", err)
+		return nil, fmt.Errorf("decoding ZTS role certificate response: %w", err)
 	}
 	certPEM := []byte(rc.X509Certificate)
 	certs, err := parseCertChain(certPEM)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parsing role certificate from ZTS: %w", err)
+		return nil, fmt.Errorf("parsing role certificate from ZTS: %w", err)
 	}
 	leaf, _ := pickLeaf(certs)
 	if leaf == nil {
-		return nil, nil, nil, fmt.Errorf("no certificate in ZTS role certificate response")
+		return nil, fmt.Errorf("no certificate in ZTS role certificate response")
 	}
 
 	keyDER, err := x509.MarshalPKCS8PrivateKey(roleKey)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("marshalling role private key: %w", err)
+		return nil, fmt.Errorf("marshalling role private key: %w", err)
 	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
 
-	return certPEM, keyPEM, leaf, nil
+	return &roleCert{
+		cert:    certPEM,
+		key:     pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}),
+		renewAt: leaf.NotBefore.Add(leaf.NotAfter.Sub(leaf.NotBefore) * 2 / 3),
+	}, nil
 }
 
 func (d *Driver) roleCertCSR(key *ecdsa.PrivateKey, principal string, ref roleCertRef) ([]byte, error) {
