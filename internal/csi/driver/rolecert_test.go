@@ -17,6 +17,7 @@ limitations under the License.
 package driver
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -37,9 +38,11 @@ import (
 
 	"github.com/cert-manager/csi-lib/metadata"
 	"github.com/cert-manager/csi-lib/storage"
+	keystore "github.com/pavlo-v-chernykh/keystore-go/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/klog/v2/klogr"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 const (
@@ -454,4 +457,37 @@ func Test_updateRootCAFiles_atomicDirPreservesRoleFiles(t *testing.T) {
 		testRoleA + ".cert.pem": []byte("role-cert-1"),
 		testRoleA + ".key.pem":  []byte("role-key-1"),
 	}, store.writeFilesPayloads[0])
+}
+
+func Test_writeKeypair_roleCerts_keystores(t *testing.T) {
+	ca := newTestCA(t)
+	z := newFakeZTS(t, ca)
+	store := readableMemoryFS{storage.NewMemoryFS()}
+	d := newRoleCertDriver(z, store)
+	d.keystoreEnabled = true
+	d.keystoreFileName = "service.pkcs12"
+	d.jksFileName = "service.jks"
+	d.keystorePassword = "changeit"
+
+	meta := roleCertMeta("vol-id", testRoleA)
+	_, err := store.RegisterMetadata(meta)
+	require.NoError(t, err)
+	svcKey, svcChain := ca.serviceCert(t)
+	require.NoError(t, d.writeKeypair(meta, svcKey, svcChain, nil))
+
+	files, err := store.ReadFiles("vol-id")
+	require.NoError(t, err)
+	pair, err := tls.X509KeyPair(files[testRoleA+".cert.pem"], files[testRoleA+".key.pem"])
+	require.NoError(t, err)
+
+	p12Key, p12Leaf, _, err := pkcs12.DecodeChain(files[testRoleA+".pkcs12"], "changeit")
+	require.NoError(t, err)
+	assert.Equal(t, pair.Certificate[0], p12Leaf.Raw)
+	assert.True(t, p12Key.(*ecdsa.PrivateKey).Equal(pair.PrivateKey))
+
+	ks := keystore.New()
+	require.NoError(t, ks.Load(bytes.NewReader(files[testRoleA+".jks"]), []byte("changeit")))
+	entry, err := ks.GetPrivateKeyEntry("1", []byte("changeit"))
+	require.NoError(t, err)
+	assert.Equal(t, pair.Certificate[0], entry.CertificateChain[0].Content)
 }
