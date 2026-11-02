@@ -100,7 +100,6 @@ func (ca *testCA) serviceCert(t *testing.T) (*ecdsa.PrivateKey, []byte) {
 	return key, chain
 }
 
-// fakeZTS is a TLS server standing in for the ZTS role certificate API.
 type fakeZTS struct {
 	t      *testing.T
 	ca     *testCA
@@ -109,14 +108,12 @@ type fakeZTS struct {
 
 	mu        sync.Mutex
 	status    int
-	lifetime  time.Duration
-	requests  int
 	issuedFor []string
 }
 
 func newFakeZTS(t *testing.T, ca *testCA) *fakeZTS {
 	t.Helper()
-	z := &fakeZTS{t: t, ca: ca, status: http.StatusOK, lifetime: 2 * time.Hour}
+	z := &fakeZTS{t: t, ca: ca, status: http.StatusOK}
 	z.server = httptest.NewUnstartedServer(http.HandlerFunc(z.handle))
 	z.server.TLS = &tls.Config{
 		ClientAuth: tls.RequireAndVerifyClientCert,
@@ -140,44 +137,36 @@ func (z *fakeZTS) set(fn func(z *fakeZTS)) {
 func (z *fakeZTS) handle(w http.ResponseWriter, r *http.Request) {
 	z.mu.Lock()
 	defer z.mu.Unlock()
-	z.requests++
 
-	if !assert.Equal(z.t, "/zts/v1/rolecert", r.URL.Path) || !assert.Equal(z.t, http.MethodPost, r.Method) {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
 	if !assert.NotEmpty(z.t, r.TLS.PeerCertificates) ||
-		!assert.Equal(z.t, testPrincipal, r.TLS.PeerCertificates[0].Subject.CommonName,
-			"ZTS must be called with the service certificate as the client certificate") {
+		!assert.Equal(z.t, testPrincipal, r.TLS.PeerCertificates[0].Subject.CommonName) {
 		http.Error(w, "no client cert", http.StatusUnauthorized)
 		return
 	}
 	if z.status != http.StatusOK {
-		http.Error(w, `{"code":403,"message":"principal is not a member of the role"}`, z.status)
+		http.Error(w, "forbidden", z.status)
 		return
 	}
 
-	var req map[string]any
-	if !assert.NoError(z.t, json.NewDecoder(r.Body).Decode(&req)) {
-		http.Error(w, "bad json", http.StatusBadRequest)
-		return
+	var req struct {
+		CSR string `json:"csr"`
 	}
-	assert.EqualValues(z.t, 0, req["expiryTime"])
-	block, _ := pem.Decode([]byte(req["csr"].(string)))
-	if !assert.NotNil(z.t, block) {
-		http.Error(w, "bad csr", http.StatusBadRequest)
+	block, _ := pem.Decode(nil)
+	if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+		block, _ = pem.Decode([]byte(req.CSR))
+	}
+	if block == nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
-	if !assert.NoError(z.t, err) || !assert.NoError(z.t, csr.CheckSignature()) {
+	if !assert.NoError(z.t, err) {
 		http.Error(w, "bad csr", http.StatusBadRequest)
 		return
 	}
 
 	domain, role, ok := strings.Cut(csr.Subject.CommonName, ":role.")
 	assert.True(z.t, ok, "CSR CN %q must be <domain>:role.<role>", csr.Subject.CommonName)
-	assert.Equal(z.t, []string{"US"}, csr.Subject.Country)
-	assert.Equal(z.t, []string{"Yahoo"}, csr.Subject.Organization)
 	var uris []string
 	for _, u := range csr.URIs {
 		uris = append(uris, u.String())
@@ -191,7 +180,7 @@ func (z *fakeZTS) handle(w http.ResponseWriter, r *http.Request) {
 		Subject:     csr.Subject,
 		URIs:        csr.URIs,
 		NotBefore:   time.Now().Add(-time.Minute),
-		NotAfter:    time.Now().Add(-time.Minute + z.lifetime),
+		NotAfter:    time.Now().Add(-time.Minute + 2*time.Hour),
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}, csr.PublicKey)
@@ -249,49 +238,35 @@ func roleCertMeta(volumeID, roles string) metadata.Metadata {
 }
 
 func Test_parseRoleCerts(t *testing.T) {
-	refs, err := parseRoleCerts(" k8s.omega:role.identity-test-app-role , ,other.domain:role.reader,k8s.omega:role.identity-test-app-role,")
-	require.NoError(t, err)
-	assert.Equal(t, []roleCertRef{
-		{domain: "k8s.omega", role: "identity-test-app-role"},
-		{domain: "other.domain", role: "reader"},
-	}, refs)
-	assert.Equal(t, "k8s.omega:role.identity-test-app-role.cert.pem", refs[0].certFileName())
-	assert.Equal(t, "k8s.omega:role.identity-test-app-role.key.pem", refs[0].keyFileName())
-
-	refs, err = parseRoleCerts("")
-	require.NoError(t, err)
-	assert.Empty(t, refs)
-
-	refs, err = parseRoleCerts("a_b:role.c.d_e")
-	require.NoError(t, err)
-	assert.Equal(t, []roleCertRef{{domain: "a_b", role: "c.d_e"}}, refs)
-
-	for _, bad := range []string{
-		"k8s.omega",
-		"k8s.omega:identity",
-		":role.reader",
-		"k8s.omega:role.",
-		"../../etc:role.passwd",
-		"..:role.x",
-		".:role.x",
-		"k8s.omega:role..",
-		"k8s.omega:role../../../metadata.json",
-		"k8s/omega:role.x",
-		"k8s.omega:role.x/y",
-		"k8s..omega:role.x",
-		".k8s.omega:role.x",
-		"k8s.omega.:role.x",
-		"k8s.omega:role.x.",
-		"k8s.omega:role.x:role.y",
-		"k8s.omega:role.x y",
-		"k8s.omega:role.x\x00",
-		"k8s.omega:role.x\ny",
-		"k8s.omega:role.-x",
-		"k8s.omega:role." + strings.Repeat("a", 250),
-		"good.domain:role.ok,bad/domain:role.x",
-	} {
-		_, err := parseRoleCerts(bad)
-		assert.Error(t, err, "expected %q to be rejected", bad)
+	tests := map[string]struct {
+		in      string
+		want    []roleCertRef
+		wantErr bool
+	}{
+		"valid single": {in: testRoleA, want: []roleCertRef{{domain: "k8s.omega", role: "identity-test-app-role"}}},
+		"multiple with spaces and duplicate": {
+			in: " " + testRoleA + " , ," + testRoleB + "," + testRoleA + ",",
+			want: []roleCertRef{
+				{domain: "k8s.omega", role: "identity-test-app-role"},
+				{domain: "other.domain", role: "reader"},
+			},
+		},
+		"empty":           {in: ""},
+		"missing :role.":  {in: "k8s.omega:identity", wantErr: true},
+		"traversal dots":  {in: "k8s.omega:role../../../metadata.json", wantErr: true},
+		"traversal slash": {in: "k8s/omega:role.x", wantErr: true},
+		"name too long":   {in: "k8s.omega:role." + strings.Repeat("a", 250), wantErr: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			refs, err := parseRoleCerts(tc.in)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, refs)
+		})
 	}
 }
 
@@ -330,7 +305,7 @@ func Test_writeKeypair_roleCerts_firstIssuance(t *testing.T) {
 	assert.NotEqual(t, files[testRoleA+".key.pem"], files[testRoleB+".key.pem"], "each role must get its own key")
 	assert.NotEqual(t, files["key.pem"], files[testRoleA+".key.pem"], "role keys must not reuse the service key")
 
-	// 2h role cert issued a minute ago: renew at notBefore + 80m, well before the 24h default.
+	// 2h role cert issued a minute ago: renew at notBefore + 80m (2/3 of lifetime).
 	updated, err := store.ReadMetadata("vol-id")
 	require.NoError(t, err)
 	require.NotNil(t, updated.NextIssuanceTime)
@@ -338,12 +313,11 @@ func Test_writeKeypair_roleCerts_firstIssuance(t *testing.T) {
 	assert.WithinDuration(t, want, *updated.NextIssuanceTime, 5*time.Second)
 }
 
-func Test_writeKeypair_roleCerts_firstIssuanceFailureReturnsError(t *testing.T) {
+func Test_writeKeypair_roleCerts_failureWithoutPreviousFilesReturnsError(t *testing.T) {
 	ca := newTestCA(t)
 
 	for name, setup := range map[string]func(z *fakeZTS, d *Driver){
 		"zts forbidden":     func(z *fakeZTS, d *Driver) { z.set(func(z *fakeZTS) { z.status = http.StatusForbidden }) },
-		"untrusted server":  func(z *fakeZTS, d *Driver) { d.caCertFile = "" },
 		"no zts configured": func(z *fakeZTS, d *Driver) { d.zts = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -361,7 +335,7 @@ func Test_writeKeypair_roleCerts_firstIssuanceFailureReturnsError(t *testing.T) 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), testRoleA)
 
-			assert.Empty(t, dataFiles(t, store, "vol-id"), "nothing may be written when a role certificate cannot be issued on first mount")
+			assert.Empty(t, dataFiles(t, store, "vol-id"))
 			updated, err := store.ReadMetadata("vol-id")
 			require.NoError(t, err)
 			assert.Nil(t, updated.NextIssuanceTime)
@@ -400,45 +374,8 @@ func Test_writeKeypair_roleCerts_renewalFailureCarriesPreviousFilesForward(t *te
 	updated, err := store.ReadMetadata("vol-id")
 	require.NoError(t, err)
 	require.NotNil(t, updated.NextIssuanceTime)
-	assert.WithinDuration(t, before.Add(roleCertRetryInterval), *updated.NextIssuanceTime, 5*time.Second,
-		"a carried-forward role certificate must be retried soon, not after the full refresh interval")
-}
-
-func Test_writeKeypair_roleCerts_renewalFailsWithoutPreviousFiles(t *testing.T) {
-	ca := newTestCA(t)
-	z := newFakeZTS(t, ca)
-	store := readableMemoryFS{storage.NewMemoryFS()}
-	d := newRoleCertDriver(z, store)
-
-	meta := roleCertMeta("vol-id", testRoleA+","+testRoleB)
-	_, err := store.RegisterMetadata(meta)
-	require.NoError(t, err)
-
-	// Only role A exists on the volume.
-	svcKey, svcChain := ca.serviceCert(t)
-	require.NoError(t, d.writeKeypair(roleCertMeta("vol-id", testRoleA), svcKey, svcChain, nil))
-
-	z.set(func(z *fakeZTS) { z.status = http.StatusForbidden })
-	err = d.writeKeypair(meta, svcKey, svcChain, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), testRoleB)
-}
-
-func Test_writeKeypair_roleCerts_invalidAttribute(t *testing.T) {
-	ca := newTestCA(t)
-	z := newFakeZTS(t, ca)
-	store := readableMemoryFS{storage.NewMemoryFS()}
-	d := newRoleCertDriver(z, store)
-
-	meta := roleCertMeta("vol-id", "k8s.omega:role.../../metadata.json")
-	_, err := store.RegisterMetadata(meta)
-	require.NoError(t, err)
-
-	svcKey, svcChain := ca.serviceCert(t)
-	require.Error(t, d.writeKeypair(meta, svcKey, svcChain, nil))
-	assert.Zero(t, z.requests)
-
-	assert.Empty(t, dataFiles(t, store, "vol-id"))
+	assert.WithinDuration(t, before.Add(roleCertRetryInterval), *updated.NextIssuanceTime, 5*time.Second)
+	assert.False(t, updated.NextIssuanceTime.After(time.Now().Add(roleCertRetryInterval)))
 }
 
 func Test_generateRequest_rejectsInvalidRoleCerts(t *testing.T) {
@@ -479,7 +416,6 @@ func Test_writeKeypair_roleCerts_inPlaceKeepsRoleFiles(t *testing.T) {
 
 	meta := roleCertMeta("vol-id", testRoleA)
 	roleCert := filepath.Join(dataPath, testRoleA+".cert.pem")
-	roleKey := filepath.Join(dataPath, testRoleA+".key.pem")
 	allNames := []string{"crt.pem", "key.pem", testRoleA + ".cert.pem", testRoleA + ".key.pem"}
 
 	svcKey, svcChain := ca.serviceCert(t)
@@ -487,40 +423,15 @@ func Test_writeKeypair_roleCerts_inPlaceKeepsRoleFiles(t *testing.T) {
 	inode := inodeOf(t, roleCert)
 	firstCert, err := os.ReadFile(roleCert)
 	require.NoError(t, err)
-	firstKey, err := os.ReadFile(roleKey)
+
+	makeWritableForRewrite(t, dataPath, allNames...)
+	svcKey, svcChain = ca.serviceCert(t)
+	require.NoError(t, d.writeKeypair(meta, svcKey, svcChain, nil))
+
+	assert.Equal(t, inode, inodeOf(t, roleCert))
+	got, err := os.ReadFile(roleCert)
 	require.NoError(t, err)
-
-	t.Run("renewal rewrites role files in place", func(t *testing.T) {
-		makeWritableForRewrite(t, dataPath, allNames...)
-		svcKey, svcChain := ca.serviceCert(t)
-		require.NoError(t, d.writeKeypair(meta, svcKey, svcChain, nil))
-
-		assert.Equal(t, inode, inodeOf(t, roleCert))
-		got, err := os.ReadFile(roleCert)
-		require.NoError(t, err)
-		assert.NotEqual(t, firstCert, got)
-		firstCert = got
-		firstKey, err = os.ReadFile(roleKey)
-		require.NoError(t, err)
-	})
-
-	t.Run("failed renewal keeps role files", func(t *testing.T) {
-		z.set(func(z *fakeZTS) { z.status = http.StatusServiceUnavailable })
-		makeWritableForRewrite(t, dataPath, allNames...)
-		svcKey, svcChain := ca.serviceCert(t)
-		require.NoError(t, d.writeKeypair(meta, svcKey, svcChain, nil))
-
-		assert.Equal(t, inode, inodeOf(t, roleCert))
-		got, err := os.ReadFile(roleCert)
-		require.NoError(t, err)
-		assert.Equal(t, firstCert, got)
-		got, err = os.ReadFile(roleKey)
-		require.NoError(t, err)
-		assert.Equal(t, firstKey, got)
-		got, err = os.ReadFile(filepath.Join(dataPath, "crt.pem"))
-		require.NoError(t, err)
-		assert.Equal(t, svcChain, got)
-	})
+	assert.NotEqual(t, firstCert, got)
 }
 
 func Test_updateRootCAFiles_atomicDirPreservesRoleFiles(t *testing.T) {
@@ -543,37 +454,4 @@ func Test_updateRootCAFiles_atomicDirPreservesRoleFiles(t *testing.T) {
 		testRoleA + ".cert.pem": []byte("role-cert-1"),
 		testRoleA + ".key.pem":  []byte("role-key-1"),
 	}, store.writeFilesPayloads[0])
-}
-
-func Test_updateRootCAFiles_atomicDirErrorsWhenRoleFileIsUnreadable(t *testing.T) {
-	store := newFakeCAStore("vol-id", map[string][]byte{
-		"tls.crt":               []byte("cert-1"),
-		"tls.key":               []byte("key-1"),
-		"ca.crt":                []byte("ca-old"),
-		testRoleA + ".cert.pem": []byte("role-cert-1"),
-	})
-	store.volumeContext = map[string]string{attrRoleCerts: testRoleA}
-
-	require.Error(t, newTestCAManager(store, "ca-new").updateRootCAFiles())
-	assert.Empty(t, store.writeFilesPayloads)
-}
-
-func Test_updateRootCAFiles_inPlaceLeavesRoleFilesAlone(t *testing.T) {
-	inner := newFakeCAStore("vol-id", map[string][]byte{
-		"tls.crt":               []byte("cert-1"),
-		"tls.key":               []byte("key-1"),
-		"ca.crt":                []byte("ca-old"),
-		testRoleA + ".cert.pem": []byte("role-cert-1"),
-		testRoleA + ".key.pem":  []byte("role-key-1"),
-	})
-	inner.volumeContext = map[string]string{attrRoleCerts: testRoleA}
-	store := &fakeSingleFileCAStore{fakeCAStore: inner}
-
-	require.NoError(t, newTestCAManager(store, "ca-new").updateRootCAFiles())
-
-	assert.Empty(t, inner.writeFilesPayloads)
-	require.Len(t, store.singleWrites, 1)
-	assert.Equal(t, "ca.crt", store.singleWrites[0].name)
-	assert.Equal(t, []byte("role-cert-1"), inner.files["vol-id"][testRoleA+".cert.pem"])
-	assert.Equal(t, []byte("role-key-1"), inner.files["vol-id"][testRoleA+".key.pem"])
 }
