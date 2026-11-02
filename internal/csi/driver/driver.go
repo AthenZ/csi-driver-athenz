@@ -63,6 +63,7 @@ const (
 	attrPodService         = "csi.cert-manager.athenz.io/pod-service"
 	attrNSForDomain        = "csi.cert-manager.athenz.io/use-namespace-for-domain"
 	attrRefreshInterval    = "csi.cert-manager.athenz.io/refresh-interval"
+	attrRoleCerts          = "csi.cert-manager.athenz.io/role-certs"
 	clusterZone            = "cluster.local"
 	defaultRefreshInterval = 24 * time.Hour
 )
@@ -435,6 +436,11 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 		return nil, fmt.Errorf("failed to decode token request token: %w", err)
 	}
 
+	// Reject a bad role list before a CertificateRequest is created for it.
+	if _, err := parseRoleCerts(meta.VolumeContext[attrRoleCerts]); err != nil {
+		return nil, err
+	}
+
 	saName := claims.KubernetesIO.ServiceAccount.Name
 	saNamespace := claims.KubernetesIO.Namespace
 	podId := claims.KubernetesIO.Pod.Uid
@@ -609,6 +615,24 @@ func (d *Driver) writeKeypair(meta metadata.Metadata, key crypto.PrivateKey, cha
 				return fmt.Errorf("failed to encode JKS keystore: %w", err)
 			}
 			data[d.jksFileName] = jks
+		}
+	}
+
+	roleRefs, err := parseRoleCerts(meta.VolumeContext[attrRoleCerts])
+	if err != nil {
+		return err
+	}
+	if len(roleRefs) > 0 {
+		roleFiles, roleNext, err := d.issueRoleCerts(meta, key, chain, roleRefs)
+		if err != nil {
+			return err
+		}
+		for name, content := range roleFiles {
+			data[name] = content
+		}
+		if roleNext != nil && roleNext.Before(nextIssuanceTime) {
+			nextIssuanceTime = *roleNext
+			d.log.Info("role certificates shorten next issuance", "nextIssuanceTime", nextIssuanceTime.Format(time.RFC3339))
 		}
 	}
 
