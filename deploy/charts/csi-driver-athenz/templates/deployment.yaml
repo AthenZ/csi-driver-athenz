@@ -47,10 +47,18 @@ spec:
           - --kube-api-qps={{ . }}
           {{- end }}
           {{- with .Values.app.approver.kubeApiBurst }}
+          {{- if ne (float64 .) (float64 (int .)) }}
+          {{- fail "app.approver.kubeApiBurst must be an integer" }}
+          {{- end }}
           - --kube-api-burst={{ . | int }}
           {{- end }}
-          {{- with .Values.app.approver.maxConcurrentReconciles }}
-          - --max-concurrent-reconciles={{ . | int }}
+          {{- with .Values.app.approver }}
+          {{- if not (kindIs "invalid" .maxConcurrentReconciles) }}
+          {{- if or (lt (float64 .maxConcurrentReconciles) 1.0) (ne (float64 .maxConcurrentReconciles) (float64 (int .maxConcurrentReconciles))) }}
+          {{- fail "app.approver.maxConcurrentReconciles must be an integer >= 1" }}
+          {{- end }}
+          - --max-concurrent-reconciles={{ .maxConcurrentReconciles | int }}
+          {{- end }}
           {{- end }}
         env:
         - name: POD_NAMESPACE

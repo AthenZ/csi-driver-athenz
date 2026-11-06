@@ -214,7 +214,7 @@ app:
     # kubeApiQPS: 50
 
     # Maximum burst of requests from the approver to the Kubernetes API server.
-    # When unset, the client-go default of 10 is used.
+    # When unset, the client-go default of 10 is used. Must be an integer.
     # +docs:property
     # +docs:type=number
     # kubeApiBurst: 100
@@ -222,6 +222,7 @@ app:
     # Number of CertificateRequests the approver evaluates in parallel. Only the
     # leader replica approves, so raise this rather than replicaCount to drain a
     # large backlog. When unset, the approver default of 1 is used.
+    # Must be an integer >= 1.
     # +docs:property
     # +docs:type=number
     # maxConcurrentReconciles: 8

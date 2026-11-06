@@ -122,7 +122,7 @@
       "type": "object"
     },
     "helm-values.app.approver.kubeApiBurst": {
-      "description": "Maximum burst of requests from the approver to the Kubernetes API server.\nWhen unset, the client-go default of 10 is used.",
+      "description": "Maximum burst of requests from the approver to the Kubernetes API server. When unset, the client-go default of 10 is used. Must be an integer.",
       "type": "number"
     },
     "helm-values.app.approver.kubeApiQPS": {
@@ -130,7 +130,7 @@
       "type": "number"
     },
     "helm-values.app.approver.maxConcurrentReconciles": {
-      "description": "Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.",
+      "description": "Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.\nMust be an integer >= 1.",
       "type": "number"
     },
     "helm-values.app.approver.metrics": {

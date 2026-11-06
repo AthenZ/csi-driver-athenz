@@ -391,13 +391,13 @@ Maximum queries-per-second from the approver to the Kubernetes API server. Leade
 
 #### **app.approver.kubeApiBurst** ~ `number`
 
-Maximum burst of requests from the approver to the Kubernetes API server.  
-When unset, the client-go default of 10 is used.
+Maximum burst of requests from the approver to the Kubernetes API server. When unset, the client-go default of 10 is used. Must be an integer.
 
 
 #### **app.approver.maxConcurrentReconciles** ~ `number`
 
-Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.
+Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.  
+Must be an integer >= 1.
 
 
 #### **app.approver.signerName** ~ `string`
