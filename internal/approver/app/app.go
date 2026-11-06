@@ -90,6 +90,8 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				IssuerRef: opts.CertManager.IssuerRef,
 				Evaluator: evaluator,
 				Manager:   mgr,
+
+				MaxConcurrentReconciles: opts.Controller.MaxConcurrentReconciles,
 			}); err != nil {
 				return fmt.Errorf("failed to register Athenz approver controller: %w", err)
 			}

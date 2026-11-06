@@ -43,6 +43,15 @@ spec:
           - --multi-tenancy={{ .Values.app.approver.multiTenant }}
           - "--metrics-bind-address=:{{.Values.app.approver.metrics.port}}"
           - "--readiness-probe-bind-address=:{{.Values.app.approver.readinessProbe.port}}"
+          {{- with .Values.app.approver.kubeApiQPS }}
+          - --kube-api-qps={{ . }}
+          {{- end }}
+          {{- with .Values.app.approver.kubeApiBurst }}
+          - --kube-api-burst={{ . | int }}
+          {{- end }}
+          {{- with .Values.app.approver.maxConcurrentReconciles }}
+          - --max-concurrent-reconciles={{ . | int }}
+          {{- end }}
         env:
         - name: POD_NAMESPACE
           valueFrom:

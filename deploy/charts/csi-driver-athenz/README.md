@@ -384,6 +384,22 @@ Override the image tag to deploy by setting this variable. If no value is set, t
 > ```
 
 -- Number of replicas of the approver to run.
+#### **app.approver.kubeApiQPS** ~ `number`
+
+Maximum queries-per-second from the approver to the Kubernetes API server. Leader election renewals share this limit. When unset, the client-go default of 5 is used.
+
+
+#### **app.approver.kubeApiBurst** ~ `number`
+
+Maximum burst of requests from the approver to the Kubernetes API server.  
+When unset, the client-go default of 10 is used.
+
+
+#### **app.approver.maxConcurrentReconciles** ~ `number`
+
+Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.
+
+
 #### **app.approver.signerName** ~ `string`
 > Default value:
 > ```yaml

@@ -80,6 +80,15 @@
         "affinity": {
           "$ref": "#/$defs/helm-values.app.approver.affinity"
         },
+        "kubeApiBurst": {
+          "$ref": "#/$defs/helm-values.app.approver.kubeApiBurst"
+        },
+        "kubeApiQPS": {
+          "$ref": "#/$defs/helm-values.app.approver.kubeApiQPS"
+        },
+        "maxConcurrentReconciles": {
+          "$ref": "#/$defs/helm-values.app.approver.maxConcurrentReconciles"
+        },
         "metrics": {
           "$ref": "#/$defs/helm-values.app.approver.metrics"
         },
@@ -111,6 +120,18 @@
       "default": {},
       "description": "-- Kubernetes affinity for the approver Deployment only. When empty, the\ntop-level `affinity` is used. Lets the approver be kept off dedicated node pools that the driver DaemonSet must still cover.\n\nFor example:\naffinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n      - matchExpressions:\n        - key: nodegroup\n          operator: In\n          values:\n          - general",
       "type": "object"
+    },
+    "helm-values.app.approver.kubeApiBurst": {
+      "description": "Maximum burst of requests from the approver to the Kubernetes API server.\nWhen unset, the client-go default of 10 is used.",
+      "type": "number"
+    },
+    "helm-values.app.approver.kubeApiQPS": {
+      "description": "Maximum queries-per-second from the approver to the Kubernetes API server. Leader election renewals share this limit. When unset, the client-go default of 5 is used.",
+      "type": "number"
+    },
+    "helm-values.app.approver.maxConcurrentReconciles": {
+      "description": "Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.",
+      "type": "number"
     },
     "helm-values.app.approver.metrics": {
       "additionalProperties": false,

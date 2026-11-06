@@ -17,6 +17,7 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
 	"time"
 
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
@@ -53,6 +54,10 @@ type OptionsController struct {
 	// LeaderElectionNamespace is the namespace that the approver controller will
 	// lease election in.
 	LeaderElectionNamespace string
+
+	// MaxConcurrentReconciles is the number of CertificateRequests the
+	// approver controller evaluates in parallel.
+	MaxConcurrentReconciles int
 }
 
 // OptionsCertManager are options specific to cert-manager and the evaluator.
@@ -80,6 +85,22 @@ func New() *Options {
 		Add("cert-manager", o.addCertManagerFlags).
 		Add("Controller", o.addControllerFlags)
 	return o
+}
+
+// Complete extends the embedded Flags.Complete with approver option validation.
+func (o *Options) Complete() error {
+	if err := o.validate(); err != nil {
+		return err
+	}
+	return o.Flags.Complete()
+}
+
+func (o *Options) validate() error {
+	if o.Controller.MaxConcurrentReconciles < 1 {
+		return fmt.Errorf("invalid --max-concurrent-reconciles %d, must be at least 1",
+			o.Controller.MaxConcurrentReconciles)
+	}
+	return nil
 }
 
 func (o *Options) addCertManagerFlags(fs *pflag.FlagSet) {
@@ -112,4 +133,7 @@ func (o *Options) addControllerFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.Controller.MetricsAddress, "metrics-bind-address", ":9402",
 		"TCP address for exposing HTTP Prometheus metrics which will be served on the "+
 			"HTTP path '/metrics'. The value \"0\" will disable exposing metrics.")
+
+	fs.IntVar(&o.Controller.MaxConcurrentReconciles, "max-concurrent-reconciles", 1,
+		"Maximum number of CertificateRequests the approver evaluates concurrently.")
 }
