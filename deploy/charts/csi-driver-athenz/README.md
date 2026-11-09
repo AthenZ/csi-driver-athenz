@@ -386,12 +386,13 @@ Override the image tag to deploy by setting this variable. If no value is set, t
 -- Number of replicas of the approver to run.
 #### **app.approver.kubeApiQPS** ~ `number`
 
-Maximum queries-per-second from the approver to the Kubernetes API server. Applied to every approver API client (CertificateRequest approvals, leader election, Namespace lookups), each with its own rate limiter. When unset, the client-go default of 5 is used.
+Maximum queries-per-second from the approver to the Kubernetes API server. Applied to every approver API client (CertificateRequest approvals, leader election, Namespace lookups), each with its own rate limiter. When unset or 0, the client-go default of 5 is used. Must be >= 0.
 
 
 #### **app.approver.kubeApiBurst** ~ `number`
 
-Maximum burst of requests from the approver to the Kubernetes API server. When unset, the client-go default of 10 is used. Must be an integer.
+Maximum burst of requests from the approver to the Kubernetes API server. When unset or 0, the client-go default of 10 is used.  
+Must be an integer >= 0.
 
 
 #### **app.approver.maxConcurrentReconciles** ~ `number`

@@ -208,14 +208,15 @@ app:
 
     # Maximum queries-per-second from the approver to the Kubernetes API server.
     # Applied to every approver API client (CertificateRequest approvals, leader
-    # election, Namespace lookups), each with its own rate limiter. When unset,
-    # the client-go default of 5 is used.
+    # election, Namespace lookups), each with its own rate limiter. When unset
+    # or 0, the client-go default of 5 is used. Must be >= 0.
     # +docs:property
     # +docs:type=number
     # kubeApiQPS: 50
 
     # Maximum burst of requests from the approver to the Kubernetes API server.
-    # When unset, the client-go default of 10 is used. Must be an integer.
+    # When unset or 0, the client-go default of 10 is used.
+    # Must be an integer >= 0.
     # +docs:property
     # +docs:type=number
     # kubeApiBurst: 100

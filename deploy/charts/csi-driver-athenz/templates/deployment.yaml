@@ -44,11 +44,14 @@ spec:
           - "--metrics-bind-address=:{{.Values.app.approver.metrics.port}}"
           - "--readiness-probe-bind-address=:{{.Values.app.approver.readinessProbe.port}}"
           {{- with .Values.app.approver.kubeApiQPS }}
+          {{- if lt (float64 .) 0.0 }}
+          {{- fail "app.approver.kubeApiQPS must be >= 0" }}
+          {{- end }}
           - --kube-api-qps={{ . }}
           {{- end }}
           {{- with .Values.app.approver.kubeApiBurst }}
-          {{- if ne (float64 .) (float64 (int .)) }}
-          {{- fail "app.approver.kubeApiBurst must be an integer" }}
+          {{- if or (lt (float64 .) 0.0) (ne (float64 .) (float64 (int .))) }}
+          {{- fail "app.approver.kubeApiBurst must be an integer >= 0" }}
           {{- end }}
           - --kube-api-burst={{ . | int }}
           {{- end }}
