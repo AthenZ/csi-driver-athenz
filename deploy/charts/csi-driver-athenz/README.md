@@ -516,6 +516,22 @@ affinity:
 
 -- Kubernetes tolerations for the approver Deployment only. When empty,  
 the top-level `tolerations` are used.
+#### **app.approver.podDisruptionBudget.enabled** ~ `bool`
+> Default value:
+> ```yaml
+> false
+> ```
+
+-- Create a PodDisruptionBudget for the approver Deployment. Use with  
+replicaCount >= 2, otherwise minAvailable: 1 blocks all voluntary evictions.
+#### **app.approver.podDisruptionBudget.minAvailable** ~ `number,string`
+> Default value:
+> ```yaml
+> 1
+> ```
+
+-- Minimum number of approver pods that must stay available during  
+voluntary disruptions. Integer or percentage string.
 #### **priorityClassName** ~ `string`
 > Default value:
 > ```yaml

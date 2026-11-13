@@ -1,0 +1,15 @@
+{{- if .Values.app.approver.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "csi-driver-athenz.name" . }}-approver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "csi-driver-athenz.name" . }}-approver
+{{ include "csi-driver-athenz.labels" . | indent 4 }}
+spec:
+  minAvailable: {{ .Values.app.approver.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ include "csi-driver-athenz.name" . }}-approver
+{{- end }}

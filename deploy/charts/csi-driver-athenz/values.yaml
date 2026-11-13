@@ -294,6 +294,14 @@ app:
     # the top-level `tolerations` are used.
     tolerations: []
 
+    podDisruptionBudget:
+      # -- Create a PodDisruptionBudget for the approver Deployment. Use with
+      # replicaCount >= 2, otherwise minAvailable: 1 blocks all voluntary evictions.
+      enabled: false
+      # -- Minimum number of approver pods that must stay available during
+      # voluntary disruptions. Integer or percentage string.
+      minAvailable: 1
+
 # -- Optional priority class to be used for the csi-driver pods.
 priorityClassName: ""
 
