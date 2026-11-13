@@ -205,6 +205,30 @@ app:
     multiTenant: false
     # -- Number of replicas of the approver to run.
     replicaCount: 1
+
+    # Maximum queries-per-second from the approver to the Kubernetes API server.
+    # Applied to every approver API client (CertificateRequest approvals, leader
+    # election, Namespace lookups), each with its own rate limiter. When unset
+    # or 0, the client-go default of 5 is used. Must be >= 0.
+    # +docs:property
+    # +docs:type=number
+    # kubeApiQPS: 50
+
+    # Maximum burst of requests from the approver to the Kubernetes API server.
+    # When unset or 0, the client-go default of 10 is used.
+    # Must be an integer >= 0.
+    # +docs:property
+    # +docs:type=number
+    # kubeApiBurst: 100
+
+    # Number of CertificateRequests the approver evaluates in parallel. Only the
+    # leader replica approves, so raise this rather than replicaCount to drain a
+    # large backlog. When unset, the approver default of 1 is used.
+    # Must be an integer >= 1.
+    # +docs:property
+    # +docs:type=number
+    # maxConcurrentReconciles: 8
+
     # -- The signer name that csi-driver-athenz approver will be given
     # permission to approve and deny. CertificateRequests referencing this
     # signer name can be processed by the Athenz approver. See:
@@ -269,6 +293,14 @@ app:
     # -- Kubernetes tolerations for the approver Deployment only. When empty,
     # the top-level `tolerations` are used.
     tolerations: []
+
+    podDisruptionBudget:
+      # -- Create a PodDisruptionBudget for the approver Deployment. Use with
+      # replicaCount >= 2, otherwise minAvailable: 1 blocks all voluntary evictions.
+      enabled: false
+      # -- Minimum number of approver pods that must stay available during
+      # voluntary disruptions. Integer or percentage string.
+      minAvailable: 1
 
 # -- Optional priority class to be used for the csi-driver pods.
 priorityClassName: ""

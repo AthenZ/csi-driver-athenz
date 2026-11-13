@@ -23,8 +23,6 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 const (
@@ -51,7 +49,7 @@ func (i *internal) validateIdentity(csr *x509.CertificateRequest, username strin
 	expSpiffeID := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", i.trustDomain, namespace, saName)
 	if csr.URIs[0].String() != expSpiffeID {
 		// check fallback format for non-standard service account names
-		annotations, err := getNamespaceAnnotations(namespace)
+		annotations, err := i.getNamespaceAnnotations(namespace)
 		if err != nil {
 			return fmt.Errorf("validateIdentity in approver: failed to get namespace annotations for %s: %w", namespace, err)
 		}
@@ -64,7 +62,7 @@ func (i *internal) validateIdentity(csr *x509.CertificateRequest, username strin
 	}
 
 	if i.multiTenancy {
-		err := validateIdentityDomain(namespace, saName)
+		err := i.validateIdentityDomain(namespace, saName)
 		if err != nil {
 			return err
 		}
@@ -73,10 +71,10 @@ func (i *internal) validateIdentity(csr *x509.CertificateRequest, username strin
 	return nil
 }
 
-func validateIdentityDomain(namespace, serviceAccount string) error {
+func (i *internal) validateIdentityDomain(namespace, serviceAccount string) error {
 	dashedDomain := getDashedDomain(getDomainFromServiceAccount(serviceAccount))
 	if namespace != dashedDomain {
-		annotations, err := getNamespaceAnnotations(namespace)
+		annotations, err := i.getNamespaceAnnotations(namespace)
 		if err != nil {
 			return fmt.Errorf("validateIdentity in approver: failed to get namespace annotations for %s: %w", namespace, err)
 		}
@@ -115,16 +113,8 @@ func getDashedDomain(domain string) string {
 	return domain
 }
 
-func getNamespaceAnnotations(namespace string) (map[string]string, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("validateIdentity in approver: failed to get in cluster config: %w", err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("validateIdentity in approver: failed to get clientset: %w", err)
-	}
-	ns, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+func (i *internal) getNamespaceAnnotations(namespace string) (map[string]string, error) {
+	ns, err := i.kubeClient.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("validateIdentity in approver: failed to get namespace: %w", err)
 	}
