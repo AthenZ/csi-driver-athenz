@@ -19,6 +19,9 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 
 	apiutil "github.com/cert-manager/cert-manager/pkg/api/util"
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -48,6 +51,8 @@ var _ = Context("Approval", func() {
 		cl        client.Client
 		namespace corev1.Namespace
 
+		maxConcurrent int
+
 		evaluator = evaluatorfake.New()
 		issuerRef = cmmeta.IssuerReference{
 			Name:  "athenz-ca",
@@ -55,6 +60,10 @@ var _ = Context("Approval", func() {
 			Group: "cert-manager.io",
 		}
 	)
+
+	BeforeEach(func() {
+		maxConcurrent = 0
+	})
 
 	JustBeforeEach(func() {
 		ctx, cancel = context.WithCancel(context.TODO())
@@ -94,9 +103,10 @@ var _ = Context("Approval", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(controller.AddApprover(ctx, log, controller.Options{
-			Manager:   mgr,
-			Evaluator: evaluator,
-			IssuerRef: issuerRef,
+			Manager:                 mgr,
+			Evaluator:               evaluator,
+			IssuerRef:               issuerRef,
+			MaxConcurrentReconciles: maxConcurrent,
 		})).NotTo(HaveOccurred())
 
 		By("Running Approver controller")
@@ -188,4 +198,70 @@ var _ = Context("Approval", func() {
 			return apiutil.CertificateRequestIsApproved(&cr)
 		}).Should(BeTrue(), "expected approval")
 	})
+
+	for _, tc := range []struct {
+		limit    int
+		requests int
+	}{
+		{limit: 1, requests: 3},
+		{limit: 2, requests: 5},
+		{limit: 3, requests: 3},
+	} {
+		Context(fmt.Sprintf("with MaxConcurrentReconciles=%d", tc.limit), func() {
+			BeforeEach(func() {
+				maxConcurrent = tc.limit
+			})
+
+			It("should evaluate requests in parallel up to the limit and no further", func() {
+				var inFlight, peak atomic.Int32
+				gate := make(chan struct{})
+				var once sync.Once
+				releaseAll := func() { once.Do(func() { close(gate) }) }
+				DeferCleanup(releaseAll)
+
+				evaluator.WithEvaluate(func(_ *cmapi.CertificateRequest) error {
+					n := inFlight.Add(1)
+					for {
+						p := peak.Load()
+						if n <= p || peak.CompareAndSwap(p, n) {
+							break
+						}
+					}
+					<-gate
+					inFlight.Add(-1)
+					return nil
+				})
+
+				crs := make([]*cmapi.CertificateRequest, tc.requests)
+				for i := range crs {
+					crs[i] = &cmapi.CertificateRequest{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName: "csi-driver-athenz-",
+							Namespace:    namespace.Name,
+						},
+						Spec: cmapi.CertificateRequestSpec{
+							Request:   []byte("request"),
+							IssuerRef: issuerRef,
+						},
+					}
+					Expect(cl.Create(ctx, crs[i])).NotTo(HaveOccurred())
+				}
+
+				want := int32(min(tc.limit, tc.requests))
+				Eventually(inFlight.Load, "10s").Should(Equal(want), "expected evaluations to reach the limit")
+				Consistently(peak.Load, "2s").Should(Equal(want), "expected evaluations to stay at the limit")
+
+				releaseAll()
+				for _, cr := range crs {
+					Eventually(func() bool {
+						if err := cl.Get(ctx, client.ObjectKeyFromObject(cr), cr); err != nil {
+							return false
+						}
+						return apiutil.CertificateRequestIsApproved(cr)
+					}, "10s").Should(BeTrue(), "expected approval")
+				}
+				Expect(peak.Load()).To(Equal(want))
+			})
+		})
+	}
 })
