@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/scale/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -80,10 +81,16 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				return err
 			}
 
+			kubeClient, err := kubernetes.NewForConfig(opts.RestConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create kubernetes client: %w", err)
+			}
+
 			evaluator := evaluator.New(evaluator.Options{
 				TrustDomain:                opts.CertManager.TrustDomain,
 				CertificateRequestDuration: opts.CertManager.CertificateRequestDuration,
 				MultiTenancy:               opts.CertManager.MultiTenancy,
+				KubeClient:                 kubeClient,
 			})
 
 			if err := controller.AddApprover(ctx, opts.Logr, controller.Options{

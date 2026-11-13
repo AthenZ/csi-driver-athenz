@@ -450,18 +450,18 @@ func (d *Driver) generateRequest(meta metadata.Metadata) (*manager.CertificateRe
 	// if the non-standard service account annotation is set, then we will derive the athenz domain name from the
 	// namespace name and the service account name
 	if useNSForDomain == "true" {
-		annotations, err := getNamespaceAnnotations(saNamespace)
+		annotations, labels, err := getNamespaceMetadata(saNamespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get domain namespace annotations: %w", err)
 		}
-		domain = getDomainFromNamespaceAnnotations(annotations)
+		domain = getDomainFromNamespace(annotations, labels)
 		spiffeID = fmt.Sprintf("spiffe://%s/ns/%s/sa/%s.%s", d.trustDomain, saNamespace, domain, saName)
 		commonName = fmt.Sprintf("%s.%s", domain, saName)
 		service = saName
 	}
 
 	if domain == "" {
-		return nil, fmt.Errorf("no domain found in either SA name OR in namespace annotations: %s", saNamespace)
+		return nil, fmt.Errorf("no domain found in either SA name OR in namespace annotations or labels: %s", saNamespace)
 	}
 
 	spiffeUri, err := url.Parse(spiffeID)

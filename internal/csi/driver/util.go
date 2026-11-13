@@ -36,6 +36,8 @@ import (
 )
 
 const (
+	// AthenzDomainAnnotation is the Namespace annotation, and failing that the Namespace
+	// label, that names the namespace's Athenz domain.
 	AthenzDomainAnnotation = "athenz.io/domain"
 )
 
@@ -86,27 +88,30 @@ func appendUri(uriList []*url.URL, uriValue string) []*url.URL {
 	return uriList
 }
 
-func getNamespaceAnnotations(namespace string) (map[string]string, error) {
+// getNamespaceMetadata returns the annotations and labels of the given namespace.
+func getNamespaceMetadata(namespace string) (map[string]string, map[string]string, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("non-standard SA fallabck: failed to get in cluster config: %w", err)
+		return nil, nil, fmt.Errorf("non-standard SA fallabck: failed to get in cluster config: %w", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("non-standard SA fallabck: failed to get clientset: %w", err)
+		return nil, nil, fmt.Errorf("non-standard SA fallabck: failed to get clientset: %w", err)
 	}
 	ns, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("non-standard SA fallabck: failed to get namespace: %w", err)
+		return nil, nil, fmt.Errorf("non-standard SA fallabck: failed to get namespace: %w", err)
 	}
-	return ns.GetAnnotations(), nil
+	return ns.GetAnnotations(), ns.GetLabels(), nil
 }
 
-func getDomainFromNamespaceAnnotations(annotations map[string]string) string {
-	if domain, ok := annotations[AthenzDomainAnnotation]; ok {
+// getDomainFromNamespace returns the namespace's Athenz domain: its athenz.io/domain
+// annotation, else its athenz.io/domain label, else "".
+func getDomainFromNamespace(annotations, labels map[string]string) string {
+	if domain := annotations[AthenzDomainAnnotation]; domain != "" {
 		return domain
 	}
-	return ""
+	return labels[AthenzDomainAnnotation]
 }
 
 // parseRefreshInterval parses a refresh interval string (e.g., "60m", "120m", "1h", "2h")
