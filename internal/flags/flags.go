@@ -84,14 +84,21 @@ func (f *Flags) Complete() error {
 		return fmt.Errorf("failed to build kubernetes rest config: %s", err)
 	}
 
+	f.applyKubeAPIRateLimit()
+
+	return nil
+}
+
+func (f *Flags) applyKubeAPIRateLimit() {
 	if f.kubeAPIQPS > 0 {
 		f.RestConfig.QPS = f.kubeAPIQPS
+		// client-go rejects a positive QPS with a zero burst when no rate limiter
+		// is supplied, so fall back to the documented burst default.
+		f.RestConfig.Burst = 10
 	}
 	if f.kubeAPIBurst > 0 {
 		f.RestConfig.Burst = f.kubeAPIBurst
 	}
-
-	return nil
 }
 
 func (f *Flags) addFlags(cmd *cobra.Command) {
