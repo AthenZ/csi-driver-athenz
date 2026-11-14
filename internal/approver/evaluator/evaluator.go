@@ -23,6 +23,7 @@ import (
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/cert-manager/cert-manager/pkg/util"
 	utilpki "github.com/cert-manager/cert-manager/pkg/util/pki"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -53,6 +54,10 @@ type Options struct {
 	// Multi-tenancy is the flag to enable strict multi-tenancy support where
 	// namespace name has to match with the domain name.
 	MultiTenancy bool
+
+	// KubeClient reads Namespace annotations. If nil, an in-cluster client is
+	// created for each lookup.
+	KubeClient kubernetes.Interface
 }
 
 // internal is the internal implementation of the evaluator that should be used
@@ -69,6 +74,9 @@ type internal struct {
 	// Multi-tenancy is the flag to enable strict multi-tenancy support where
 	// namespace name has to match with the domain name.
 	multiTenancy bool
+
+	// kubeClient reads Namespace annotations; nil means an in-cluster client.
+	kubeClient kubernetes.Interface
 }
 
 // New constructs a new evaluator.
@@ -77,6 +85,7 @@ func New(opts Options) Interface {
 		trustDomain:                opts.TrustDomain,
 		certificateRequestDuration: opts.CertificateRequestDuration,
 		multiTenancy:               opts.MultiTenancy,
+		kubeClient:                 opts.KubeClient,
 	}
 }
 

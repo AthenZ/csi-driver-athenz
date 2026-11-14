@@ -107,12 +107,30 @@ func Test_appendHostname(t *testing.T) {
 	}
 }
 
-func Test_getDomainFromNamespaceAnnotations(t *testing.T) {
+func Test_getDomainFromNamespace(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
+		labels      map[string]string
 		expected    string
 	}{
+		{
+			name:     "label only",
+			labels:   map[string]string{"athenz.io/domain": "omega.team"},
+			expected: "omega.team",
+		},
+		{
+			name:        "annotation wins over label",
+			annotations: map[string]string{"athenz.io/domain": "payments.prod"},
+			labels:      map[string]string{"athenz.io/domain": "omega.team"},
+			expected:    "payments.prod",
+		},
+		{
+			name:        "empty annotation falls back to label",
+			annotations: map[string]string{"athenz.io/domain": ""},
+			labels:      map[string]string{"athenz.io/domain": "omega.team"},
+			expected:    "omega.team",
+		},
 		{
 			name: "namespace with athenz domain annotation",
 			annotations: map[string]string{
@@ -142,7 +160,7 @@ func Test_getDomainFromNamespaceAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getDomainFromNamespaceAnnotations(tt.annotations)
+			result := getDomainFromNamespace(tt.annotations, tt.labels)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
