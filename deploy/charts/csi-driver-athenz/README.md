@@ -384,6 +384,23 @@ Override the image tag to deploy by setting this variable. If no value is set, t
 > ```
 
 -- Number of replicas of the approver to run.
+#### **app.approver.kubeApiQPS** ~ `number`
+
+Maximum queries-per-second from the approver to the Kubernetes API server. Applied to every approver API client (CertificateRequest approvals, leader election, Namespace lookups), each with its own rate limiter. When unset or 0, the client-go default of 5 is used. Must be >= 0.
+
+
+#### **app.approver.kubeApiBurst** ~ `number`
+
+Maximum burst of requests from the approver to the Kubernetes API server. When unset or 0, the client-go default of 10 is used.  
+Must be an integer >= 0.
+
+
+#### **app.approver.maxConcurrentReconciles** ~ `number`
+
+Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.  
+Must be an integer >= 1.
+
+
 #### **app.approver.signerName** ~ `string`
 > Default value:
 > ```yaml
@@ -499,6 +516,22 @@ affinity:
 
 -- Kubernetes tolerations for the approver Deployment only. When empty,  
 the top-level `tolerations` are used.
+#### **app.approver.podDisruptionBudget.enabled** ~ `bool`
+> Default value:
+> ```yaml
+> false
+> ```
+
+-- Create a PodDisruptionBudget for the approver Deployment. Use with  
+replicaCount >= 2, otherwise minAvailable: 1 blocks all voluntary evictions.
+#### **app.approver.podDisruptionBudget.minAvailable** ~ `number,string`
+> Default value:
+> ```yaml
+> 1
+> ```
+
+-- Minimum number of approver pods that must stay available during  
+voluntary disruptions. Integer or percentage string.
 #### **priorityClassName** ~ `string`
 > Default value:
 > ```yaml

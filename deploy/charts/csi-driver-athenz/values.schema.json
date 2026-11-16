@@ -80,6 +80,15 @@
         "affinity": {
           "$ref": "#/$defs/helm-values.app.approver.affinity"
         },
+        "kubeApiBurst": {
+          "$ref": "#/$defs/helm-values.app.approver.kubeApiBurst"
+        },
+        "kubeApiQPS": {
+          "$ref": "#/$defs/helm-values.app.approver.kubeApiQPS"
+        },
+        "maxConcurrentReconciles": {
+          "$ref": "#/$defs/helm-values.app.approver.maxConcurrentReconciles"
+        },
         "metrics": {
           "$ref": "#/$defs/helm-values.app.approver.metrics"
         },
@@ -88,6 +97,9 @@
         },
         "nodeSelector": {
           "$ref": "#/$defs/helm-values.app.approver.nodeSelector"
+        },
+        "podDisruptionBudget": {
+          "$ref": "#/$defs/helm-values.app.approver.podDisruptionBudget"
         },
         "readinessProbe": {
           "$ref": "#/$defs/helm-values.app.approver.readinessProbe"
@@ -111,6 +123,18 @@
       "default": {},
       "description": "-- Kubernetes affinity for the approver Deployment only. When empty, the\ntop-level `affinity` is used. Lets the approver be kept off dedicated node pools that the driver DaemonSet must still cover.\n\nFor example:\naffinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n      - matchExpressions:\n        - key: nodegroup\n          operator: In\n          values:\n          - general",
       "type": "object"
+    },
+    "helm-values.app.approver.kubeApiBurst": {
+      "description": "Maximum burst of requests from the approver to the Kubernetes API server. When unset or 0, the client-go default of 10 is used.\nMust be an integer >= 0.",
+      "type": "number"
+    },
+    "helm-values.app.approver.kubeApiQPS": {
+      "description": "Maximum queries-per-second from the approver to the Kubernetes API server. Applied to every approver API client (CertificateRequest approvals, leader election, Namespace lookups), each with its own rate limiter. When unset or 0, the client-go default of 5 is used. Must be >= 0.",
+      "type": "number"
+    },
+    "helm-values.app.approver.maxConcurrentReconciles": {
+      "description": "Number of CertificateRequests the approver evaluates in parallel. Only the leader replica approves, so raise this rather than replicaCount to drain a large backlog. When unset, the approver default of 1 is used.\nMust be an integer >= 1.",
+      "type": "number"
     },
     "helm-values.app.approver.metrics": {
       "additionalProperties": false,
@@ -208,6 +232,31 @@
       "default": {},
       "description": "-- Kubernetes node selector for the approver Deployment only. When empty,\nthe top-level `nodeSelector` (shared with the driver DaemonSet) is used.",
       "type": "object"
+    },
+    "helm-values.app.approver.podDisruptionBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/helm-values.app.approver.podDisruptionBudget.enabled"
+        },
+        "minAvailable": {
+          "$ref": "#/$defs/helm-values.app.approver.podDisruptionBudget.minAvailable"
+        }
+      },
+      "type": "object"
+    },
+    "helm-values.app.approver.podDisruptionBudget.enabled": {
+      "default": false,
+      "description": "-- Create a PodDisruptionBudget for the approver Deployment. Use with\nreplicaCount >= 2, otherwise minAvailable: 1 blocks all voluntary evictions.",
+      "type": "boolean"
+    },
+    "helm-values.app.approver.podDisruptionBudget.minAvailable": {
+      "default": 1,
+      "description": "-- Minimum number of approver pods that must stay available during\nvoluntary disruptions. Integer or percentage string.",
+      "type": [
+        "number",
+        "string"
+      ]
     },
     "helm-values.app.approver.readinessProbe": {
       "additionalProperties": false,
