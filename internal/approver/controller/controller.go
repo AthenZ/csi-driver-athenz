@@ -27,6 +27,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -45,6 +46,10 @@ type Options struct {
 	// Manager is a controller-runtime Manager that the Approver controller will
 	// be registered against.
 	Manager manager.Manager
+
+	// MaxConcurrentReconciles is the number of CertificateRequests evaluated
+	// in parallel. Values below 1 fall back to the controller-runtime default.
+	MaxConcurrentReconciles int
 }
 
 // approver watches for CertificateRequests which have been created by the
@@ -81,6 +86,7 @@ func AddApprover(ctx context.Context, log logr.Logger, opts Options) error {
 
 	return ctrl.NewControllerManagedBy(opts.Manager).
 		For(new(cmapi.CertificateRequest)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: opts.MaxConcurrentReconciles}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(obj client.Object) bool {
 			var req cmapi.CertificateRequest
 			err := a.lister.Get(ctx, client.ObjectKeyFromObject(obj), &req)

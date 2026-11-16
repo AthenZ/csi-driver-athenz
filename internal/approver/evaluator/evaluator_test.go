@@ -26,6 +26,7 @@ import (
 	utilpki "github.com/cert-manager/cert-manager/pkg/util/pki"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/pointer"
 )
 
@@ -314,6 +315,7 @@ func Test_Evaluate(t *testing.T) {
 			i := &internal{
 				trustDomain:                "foo.bar",
 				certificateRequestDuration: time.Hour,
+				kubeClient:                 fake.NewClientset(),
 			}
 
 			err := i.Evaluate(test.req(t))
