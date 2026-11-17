@@ -19,10 +19,14 @@ package driver
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/cert-manager/csi-lib/metadata"
+	"github.com/cert-manager/csi-lib/storage"
 	"github.com/go-logr/logr"
 
 	"github.com/AthenZ/csi-driver-athenz/internal/csi/rootca"
@@ -72,6 +76,10 @@ type camanager struct {
 	// certFileName, keyFileName, caFileName are the names used when writing file
 	// to volumes.
 	certFileName, keyFileName, caFileName string
+
+	// roleP12, roleJKS report whether role certificates are also published as
+	// PKCS12 / JKS keystores, so the atomic-dir payload can carry them forward.
+	roleP12, roleJKS bool
 
 	// updateRootCAFiles is a func to update all managed volumes with the current
 	// root CA certificates PEM. Used for testing.
@@ -222,12 +230,17 @@ func (c *camanager) updateRootCAFiles() error {
 			c.keyFileName:  keyData,
 			c.caFileName:   caPEM,
 		}
-		roleFiles, err := roleCertFiles(meta.VolumeContext)
+		roleFiles, err := roleCertFiles(meta.VolumeContext, c.roleP12, c.roleJKS)
 		if err != nil {
 			return fmt.Errorf("%q: %w", volumeID, err)
 		}
 		for _, name := range roleFiles {
 			roleData, err := c.store.ReadFile(volumeID, name)
+			// Keystores enabled after the volume was written do not exist yet.
+			if err != nil && isRoleKeystore(name) &&
+				(errors.Is(err, storage.ErrNotFound) || errors.Is(err, fs.ErrNotExist)) {
+				continue
+			}
 			if err != nil {
 				return fmt.Errorf("%q: failed to read role certificate file %q from volume to perform write: %w",
 					volumeID, name, err)
@@ -244,4 +257,8 @@ func (c *camanager) updateRootCAFiles() error {
 	}
 
 	return nil
+}
+
+func isRoleKeystore(name string) bool {
+	return strings.HasSuffix(name, roleP12FileSuffix) || strings.HasSuffix(name, roleJKSFileSuffix)
 }

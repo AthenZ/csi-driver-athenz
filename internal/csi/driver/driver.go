@@ -342,6 +342,8 @@ func New(ctx context.Context, log logr.Logger, opts Options) (*Driver, error) {
 
 	d.camanager = newCAManager(log, caStore, opts.RootCAs,
 		d.certFileName, d.keyFileName, d.caFileName)
+	d.camanager.roleP12 = d.keystoreEnabled && d.keystoreFileName != ""
+	d.camanager.roleJKS = d.keystoreEnabled && d.jksFileName != ""
 
 	cmclient, err := cmclient.NewForConfig(opts.RestConfig)
 	if err != nil {

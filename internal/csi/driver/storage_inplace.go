@@ -525,23 +525,31 @@ func validatePayloadName(name string) error {
 	return nil
 }
 
-// orderedWriteNames returns the file names to write, all names sorted
-// alphabetically followed by certFileName.
+// orderedWriteNames returns the file names to write: everything else sorted
+// alphabetically, then the role certificates (roleCertFileSuffix), then
+// certFileName.
 //
 // The order is part of the contract with the consumer: istio-agent watches only
 // the certificate file, assuming the private key cannot change without the
-// certificate changing too. Writing the certificate last means the single event
-// it does receive fires when the key, CA bundle and keystores on disk are
-// already the matching set.
+// certificate changing too. Writing each certificate after its key, CA bundle
+// and keystores means the single event it does receive fires when the files on
+// disk are already the matching set. Role certificates follow the same rule for
+// their own `.key.pem` and keystores.
 func orderedWriteNames(files map[string][]byte, certFileName string) []string {
 	names := make([]string, 0, len(files))
+	var roleCerts []string
 	for name := range files {
-		if name == certFileName {
-			continue
+		switch {
+		case name == certFileName:
+		case strings.HasSuffix(name, roleCertFileSuffix):
+			roleCerts = append(roleCerts, name)
+		default:
+			names = append(names, name)
 		}
-		names = append(names, name)
 	}
 	sort.Strings(names)
+	sort.Strings(roleCerts)
+	names = append(names, roleCerts...)
 
 	if _, ok := files[certFileName]; ok {
 		names = append(names, certFileName)

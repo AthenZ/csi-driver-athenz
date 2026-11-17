@@ -355,14 +355,22 @@ func (d *Driver) roleCertCSR(key *ecdsa.PrivateKey, principal string, ref roleCe
 	return csrPEM, nil
 }
 
-func roleCertFiles(volumeContext map[string]string) ([]string, error) {
+// roleCertFiles lists every file written for the volume's role certificates;
+// the keystore files are included only when keystores are enabled for the driver.
+func roleCertFiles(volumeContext map[string]string, p12, jks bool) ([]string, error) {
 	refs, err := parseRoleCerts(volumeContext[attrRoleCerts])
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, 2*len(refs))
+	names := make([]string, 0, 4*len(refs))
 	for _, ref := range refs {
 		names = append(names, ref.certFileName(), ref.keyFileName())
+		if p12 {
+			names = append(names, ref.name()+roleP12FileSuffix)
+		}
+		if jks {
+			names = append(names, ref.name()+roleJKSFileSuffix)
+		}
 	}
 	return names, nil
 }
