@@ -884,6 +884,18 @@ func Test_orderedWriteNames(t *testing.T) {
 			certFileName: "tls.crt",
 			expOrder:     []string{"ca.crt", "service.jks", "tls.key", "tls.crt"},
 		},
+		"role certs follow their keys and keystores, before the service cert": {
+			files: []string{
+				"tls.crt", "tls.key", "ca.crt",
+				"d:role.b.cert.pem", "d:role.b.key.pem", "d:role.b.jks",
+				"d:role.a.cert.pem", "d:role.a.key.pem", "d:role.a.pkcs12",
+			},
+			certFileName: "tls.crt",
+			expOrder: []string{
+				"ca.crt", "d:role.a.key.pem", "d:role.a.pkcs12", "d:role.b.jks", "d:role.b.key.pem", "tls.key",
+				"d:role.a.cert.pem", "d:role.b.cert.pem", "tls.crt",
+			},
+		},
 		"cert only": {
 			files:        []string{"tls.crt"},
 			certFileName: "tls.crt",

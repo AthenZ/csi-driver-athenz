@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/cert-manager/csi-lib/metadata"
+	"github.com/cert-manager/csi-lib/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/klog/v2/klogr"
@@ -156,8 +157,9 @@ var _ rootca.Interface = &fakeRootCAs{}
 // fakeCAStore implements the atomic-dir surface: only whole-payload writes, with
 // the atomic writer's desired-state semantics.
 type fakeCAStore struct {
-	volumeIDs []string
-	files     map[string]map[string][]byte
+	volumeIDs     []string
+	files         map[string]map[string][]byte
+	volumeContext map[string]string
 
 	// writeFilesPayloads records every whole-volume write.
 	writeFilesPayloads []map[string][]byte
@@ -173,13 +175,13 @@ func newFakeCAStore(volumeID string, files map[string][]byte) *fakeCAStore {
 func (f *fakeCAStore) ListVolumes() ([]string, error) { return f.volumeIDs, nil }
 
 func (f *fakeCAStore) ReadMetadata(volumeID string) (metadata.Metadata, error) {
-	return metadata.Metadata{VolumeID: volumeID}, nil
+	return metadata.Metadata{VolumeID: volumeID, VolumeContext: f.volumeContext}, nil
 }
 
 func (f *fakeCAStore) ReadFile(volumeID, name string) ([]byte, error) {
 	data, ok := f.files[volumeID][name]
 	if !ok {
-		return nil, fmt.Errorf("no such file %q on volume %q", name, volumeID)
+		return nil, fmt.Errorf("no such file %q on volume %q: %w", name, volumeID, storage.ErrNotFound)
 	}
 	return data, nil
 }
@@ -322,6 +324,69 @@ func Test_updateRootCAFiles_atomicDirWritesAllThreeFiles(t *testing.T) {
 	}, store.writeFilesPayloads[0],
 		"the atomic writer prunes anything missing from its payload, so the keypair has to be "+
 			"written back alongside the new trust bundle")
+}
+
+// The atomic writer prunes everything outside its payload, so role certificates
+// and their keystores have to ride along with the new trust bundle.
+func Test_updateRootCAFiles_atomicDirKeepsRoleFiles(t *testing.T) {
+	role := "k8s.omega:role.reader"
+	files := map[string][]byte{
+		"tls.crt":          []byte("cert-1"),
+		"tls.key":          []byte("key-1"),
+		"ca.crt":           []byte("ca-old"),
+		role + ".cert.pem": []byte("role-cert"),
+		role + ".key.pem":  []byte("role-key"),
+		role + ".pkcs12":   []byte("role-p12"),
+		role + ".jks":      []byte("role-jks"),
+	}
+	store := newFakeCAStore("vol-id", files)
+	store.volumeContext = map[string]string{attrRoleCerts: "k8s.omega:role.reader"}
+
+	c := newTestCAManager(store, "ca-new")
+	c.roleP12, c.roleJKS = true, true
+	require.NoError(t, c.updateRootCAFiles())
+
+	require.Len(t, store.writeFilesPayloads, 1)
+	want := map[string][]byte{}
+	for name, data := range files {
+		want[name] = data
+	}
+	want["ca.crt"] = []byte("ca-new")
+	assert.Equal(t, want, store.writeFilesPayloads[0])
+}
+
+// Keystore flags enabled after the volume was written: the missing optional
+// keystores are skipped, while the role certificate and key stay required.
+func Test_updateRootCAFiles_atomicDirSkipsMissingRoleKeystores(t *testing.T) {
+	role := "k8s.omega:role.reader"
+	files := map[string][]byte{
+		"tls.crt":          []byte("cert-1"),
+		"tls.key":          []byte("key-1"),
+		"ca.crt":           []byte("ca-old"),
+		role + ".cert.pem": []byte("role-cert"),
+		role + ".key.pem":  []byte("role-key"),
+	}
+	store := newFakeCAStore("vol-id", files)
+	store.volumeContext = map[string]string{attrRoleCerts: role}
+
+	c := newTestCAManager(store, "ca-new")
+	c.roleP12, c.roleJKS = true, true
+	require.NoError(t, c.updateRootCAFiles())
+
+	require.Len(t, store.writeFilesPayloads, 1)
+	want := map[string][]byte{}
+	for name, data := range files {
+		want[name] = data
+	}
+	want["ca.crt"] = []byte("ca-new")
+	assert.Equal(t, want, store.writeFilesPayloads[0])
+
+	delete(files, role+".key.pem")
+	store = newFakeCAStore("vol-id", files)
+	store.volumeContext = map[string]string{attrRoleCerts: role}
+	c = newTestCAManager(store, "ca-new")
+	c.roleP12, c.roleJKS = true, true
+	require.Error(t, c.updateRootCAFiles(), "a missing role key is not optional")
 }
 
 // Without a single-file writer the keypair has to be readable, and a volume that
